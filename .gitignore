@@ -3,3 +3,9 @@ captive-core/
 .soroban/
 !test.toml
 *.sqlite
+
+/soroban-rpc
+.idea
+*.sqlite*
+.env
+*.log

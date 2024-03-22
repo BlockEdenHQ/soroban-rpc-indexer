@@ -422,6 +422,10 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 	return info, nil
 }
 
+func NewEventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerClosedAt string, txHash string) (EventInfo, error) {
+	return eventInfoForEvent(event, cursor, ledgerClosedAt, txHash)
+}
+
 // NewGetEventsHandler returns a json rpc handler to fetch and filter events
 func NewGetEventsHandler(eventsStore *events.MemoryStore, maxLimit, defaultLimit uint) jrpc2.Handler {
 	eventsHandler := eventsRPCHandler{

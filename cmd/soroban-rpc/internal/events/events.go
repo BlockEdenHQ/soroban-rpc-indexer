@@ -184,6 +184,12 @@ func seek(events []event, cursor Cursor) []event {
 	return events[j:]
 }
 
+type EventInfoRaw struct {
+	Event          xdr.DiagnosticEvent
+	Cursor         Cursor
+	LedgerClosedAt string
+}
+
 // IngestEvents adds new events from the given ledger into the store.
 // As a side effect, events which fall outside the retention window are
 // removed from the store.
@@ -209,6 +215,24 @@ func (m *MemoryStore) IngestEvents(ledgerCloseMeta xdr.LedgerCloseMeta) error {
 		Observe(time.Since(startTime).Seconds())
 	m.eventCountMetric.Observe(float64(len(events)))
 	return nil
+}
+
+func (m *MemoryStore) GetLastLedgerEvents() (eventsRes []EventInfoRaw) {
+	if m.eventsByLedger.Len() > 0 {
+		bucket := m.eventsByLedger.Get(m.eventsByLedger.Len() - 1)
+		events := bucket.BucketContent
+
+		for _, ev := range events {
+			var diagnosticEvent xdr.DiagnosticEvent
+			xdr.SafeUnmarshal(ev.diagnosticEventXDR, &diagnosticEvent)
+			eventsRes = append(eventsRes, EventInfoRaw{
+				Event:          diagnosticEvent,
+				Cursor:         Cursor{Ledger: bucket.LedgerSeq, Tx: ev.txIndex, Op: 0, Event: ev.eventIndex},
+				LedgerClosedAt: time.Unix(bucket.LedgerCloseTimestamp, 0).UTC().Format(time.RFC3339),
+			})
+		}
+	}
+	return eventsRes
 }
 
 func readEvents(networkPassphrase string, ledgerCloseMeta xdr.LedgerCloseMeta) (events []event, err error) {

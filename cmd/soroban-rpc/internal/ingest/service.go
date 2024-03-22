@@ -2,8 +2,11 @@ package ingest
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 	"sync"
 	"time"
 
@@ -41,6 +44,8 @@ type Config struct {
 	Timeout           time.Duration
 	OnIngestionRetry  backoff.Notify
 	Daemon            interfaces.Daemon
+	IndexerService    *indexer.Service
+	LedgerEntryReader db.LedgerEntryReader
 }
 
 func NewService(cfg Config) *Service {
@@ -86,6 +91,8 @@ func newService(cfg Config) *Service {
 		ledgerBackend:     cfg.LedgerBackend,
 		networkPassPhrase: cfg.NetworkPassPhrase,
 		timeout:           cfg.Timeout,
+		indexerService:    cfg.IndexerService,
+		ledgerEntryReader: cfg.LedgerEntryReader,
 		metrics: Metrics{
 			ingestionDurationMetric: ingestionDurationMetric,
 			latestLedgerMetric:      latestLedgerMetric,
@@ -141,6 +148,8 @@ type Service struct {
 	done              context.CancelFunc
 	wg                sync.WaitGroup
 	metrics           Metrics
+	indexerService    *indexer.Service
+	ledgerEntryReader db.LedgerEntryReader
 }
 
 func (s *Service) Close() error {
@@ -295,6 +304,13 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	}
 	s.logger.Debugf("Ingested ledger %d", sequence)
 
+	readTx, _ := s.ledgerEntryReader.NewTx(ctx)
+	defer func() {
+		_ = readTx.Done()
+	}()
+	s.processEvents(readTx)
+	s.processTransactions()
+
 	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "total"}).Observe(time.Since(startTime).Seconds())
 	s.metrics.latestLedgerMetric.Set(float64(sequence))
@@ -317,4 +333,32 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 		return err
 	}
 	return nil
+}
+
+func (s *Service) processEvents(tx db.LedgerEntryReadTx) {
+	eventsInfoRaw := s.eventStore.GetLastLedgerEvents()
+
+	for _, ev := range eventsInfoRaw {
+		s.indexerService.CreateEvent(tx, ev)
+	}
+}
+
+func (s *Service) processTransactions() {
+	hashes := s.transactionStore.GetLastLedgerTransactions()
+
+	for _, hash := range hashes {
+		request := methods.GetTransactionRequest{
+			Hash: hash,
+		}
+		info, err := methods.GetTransaction(s.transactionStore, request)
+
+		var txHash xdr.Hash
+		hex.Decode(txHash[:], []byte(hash))
+		tx, _, _ := s.transactionStore.GetTransaction(txHash)
+
+		if err != nil {
+			continue
+		}
+		s.indexerService.CreateTransaction(hash, info, tx)
+	}
 }

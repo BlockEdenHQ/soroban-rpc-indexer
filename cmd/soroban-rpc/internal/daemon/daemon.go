@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer"
 	"net/http"
 	"net/http/pprof" //nolint:gosec
 	"os"
@@ -229,6 +230,8 @@ func MustNew(cfg *config.Config) *Daemon {
 		Timeout:           cfg.IngestionTimeout,
 		OnIngestionRetry:  onIngestionRetry,
 		Daemon:            daemon,
+		IndexerService:    indexer.New(logger),
+		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
 	})
 
 	ledgerEntryReader := db.NewLedgerEntryReader(dbConn)

@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer"
 	"io"
 	"strings"
 	"time"
@@ -24,7 +25,7 @@ func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.Ch
 			return nil
 		} else if err != nil {
 			return err
-		} else if err = ingestLedgerEntryChange(writer, change); err != nil {
+		} else if err = ingestLedgerEntryChange(writer, change, s.indexerService); err != nil {
 			return err
 		} else if err = changeStatsProcessor.ProcessChange(ctx, change); err != nil {
 			return err
@@ -74,7 +75,7 @@ func (s *Service) ingestTempLedgerEntryEvictions(
 	return ctx.Err()
 }
 
-func ingestLedgerEntryChange(writer db.LedgerEntryWriter, change ingest.Change) error {
+func ingestLedgerEntryChange(writer db.LedgerEntryWriter, change ingest.Change, indexerService *indexer.Service) error {
 	if change.Post == nil {
 		ledgerKey, err := xdr.GetLedgerKeyFromData(change.Pre.Data)
 		if err != nil {
@@ -82,6 +83,7 @@ func ingestLedgerEntryChange(writer db.LedgerEntryWriter, change ingest.Change) 
 		}
 		return writer.DeleteLedgerEntry(ledgerKey)
 	} else {
+		indexerService.UpsertLedgerEntry(*change.Post)
 		return writer.UpsertLedgerEntry(*change.Post)
 	}
 }

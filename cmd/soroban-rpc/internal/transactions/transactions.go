@@ -140,6 +140,18 @@ func (m *MemoryStore) IngestTransactions(ledgerCloseMeta xdr.LedgerCloseMeta) er
 	return nil
 }
 
+func (m *MemoryStore) GetLastLedgerTransactions() (transactions []string) {
+	if m.transactionsByLedger.Len() > 0 {
+		bucket := m.transactionsByLedger.Get(m.transactionsByLedger.Len() - 1)
+		hashes := bucket.BucketContent
+
+		for _, hash := range hashes {
+			transactions = append(transactions, hash.HexString())
+		}
+	}
+	return transactions
+}
+
 type LedgerInfo struct {
 	Sequence  uint32
 	CloseTime int64

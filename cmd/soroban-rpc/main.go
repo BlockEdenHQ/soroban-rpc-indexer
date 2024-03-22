@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 	goxdr "github.com/stellar/go/xdr"
 
@@ -12,6 +13,11 @@ import (
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println("Error loading .env file")
+	}
+
 	var cfg config.Config
 
 	rootCmd := &cobra.Command{
