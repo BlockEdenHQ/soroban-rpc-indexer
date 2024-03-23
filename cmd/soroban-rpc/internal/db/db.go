@@ -56,7 +56,7 @@ func openSQLiteDB(dbFilePath string) (*db.Session, error) {
 	// 2. Disable WAL auto-checkpointing (we will do the checkpointing ourselves with wal_checkpoint pragmas
 	//    after every write transaction).
 	// 3. Use synchronous=NORMAL, which is faster and still safe in WAL mode.
-	session, err := db.Open("sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_wal_autocheckpoint=0&_synchronous=NORMAL&_busy_timeout=5000", dbFilePath))
+	session, err := db.Open("sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_wal_autocheckpoint=0&_synchronous=NORMAL&_busy_timeout=60000", dbFilePath))
 	if err != nil {
 		return nil, errors.Wrap(err, "open failed")
 	}
