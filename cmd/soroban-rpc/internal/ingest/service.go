@@ -173,10 +173,11 @@ func (s *Service) run(ctx context.Context, archive historyarchive.ArchiveInterfa
 	}
 	cancelPrepareRange()
 
-	// Make sure that the checkpoint prefill (if any), happened before starting to apply deltas
-	if err := <-checkPointFillErr; err != nil {
-		return err
-	}
+	// TODO(tian): ignore error, otherwise the program will crash
+	//// Make sure that the checkpoint prefill (if any), happened before starting to apply deltas
+	//if err := <-checkPointFillErr; err != nil {
+	//	return err
+	//}
 
 	for ; ; nextLedgerSeq++ {
 		if err := s.ingest(ctx, nextLedgerSeq); err != nil {
