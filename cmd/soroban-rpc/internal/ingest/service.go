@@ -161,7 +161,7 @@ func (s *Service) Close() error {
 func (s *Service) run(ctx context.Context, archive historyarchive.ArchiveInterface) error {
 	// Create a ledger-entry baseline from a checkpoint if it wasn't done before
 	// (after that we will be adding deltas from txmeta ledger entry changes)
-	nextLedgerSeq, checkPointFillErr, err := s.maybeFillEntriesFromCheckpoint(ctx, archive)
+	nextLedgerSeq, _, err := s.maybeFillEntriesFromCheckpoint(ctx, archive)
 	if err != nil {
 		return err
 	}
