@@ -37,7 +37,7 @@ import (
 const (
 	prometheusNamespace          = "soroban_rpc"
 	maxLedgerEntryWriteBatchSize = 150
-	defaultReadTimeout           = 25 * time.Second
+	defaultReadTimeout           = 60 * time.Second
 	defaultShutdownGracePeriod   = 10 * time.Second
 )
 
