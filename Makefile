@@ -81,7 +81,7 @@ dev-mac-x86-mainnet:
 
 .PHONY: dev-ubuntu-mainnet
 dev-ubuntu-mainnet:
-	TZ=UTC/GMT go run $(shell pwd)/cmd/soroban-rpc/main.go --endpoint 0.0.0.0:80 --stellar-core-binary-path $(shell pwd)/../stellar-core/src/stellar-core --captive-core-config-path $(shell pwd)/cmd/soroban-rpc/config/stellar-captive-core-live.toml --history-archive-urls https://history.stellar.org/prd/core-live/core_live_001,https://history.stellar.org/prd/core-live/core_live_002 --network-passphrase "Public Global Stellar Network ; September 2015"
+	TZ=UTC/GMT go run $(shell pwd)/cmd/soroban-rpc/main.go --endpoint 0.0.0.0:80 --stellar-core-timeout "50s" --stellar-core-binary-path $(shell pwd)/../stellar-core/src/stellar-core --captive-core-config-path $(shell pwd)/cmd/soroban-rpc/config/stellar-captive-core-live.toml --history-archive-urls https://history.stellar.org/prd/core-live/core_live_001,https://history.stellar.org/prd/core-live/core_live_002 --network-passphrase "Public Global Stellar Network ; September 2015"
 
 .PHONY: migrate
 migrate:
