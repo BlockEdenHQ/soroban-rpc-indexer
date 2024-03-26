@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/stellar/go/support/errors"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/model"
 )
 
@@ -109,7 +108,7 @@ func initTokenOpFromEvent(opType string, from string, event model.Event) model.T
 	}
 }
 
-func (s *Service) UpdateTokenMetadata(tx db.LedgerEntryReadTx, contractId string, admin string) {
+func (s *Service) UpdateTokenMetadata(contractId string, admin string) {
 	var meta model.TokenMetadata
 	if err := s.indexerDB.First(meta, contractId).Error; err != nil {
 		errors.Wrap(err, "failed to find the record")
@@ -125,7 +124,7 @@ func (s *Service) UpdateTokenMetadata(tx db.LedgerEntryReadTx, contractId string
 	}
 }
 
-func (s *Service) CreateTokenOperation(tx db.LedgerEntryReadTx, topicRaw []string, value string, event model.Event) {
+func (s *Service) CreateTokenOperation(topicRaw []string, value string, event model.Event) {
 	topic := make([]string, 0, 4)
 	for _, t := range topicRaw {
 		t = strings.TrimPrefix(t, "\"")
@@ -142,7 +141,7 @@ func (s *Service) CreateTokenOperation(tx db.LedgerEntryReadTx, topicRaw []strin
 		tokenOp.To = &admin
 		s.indexerDB.Create(&tokenOp)
 
-		s.UpdateTokenMetadata(tx, event.ContractID, admin)
+		s.UpdateTokenMetadata(event.ContractID, admin)
 	case "set_authorized":
 		if len(topic) < 3 {
 			return

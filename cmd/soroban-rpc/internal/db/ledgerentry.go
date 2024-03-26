@@ -47,6 +47,7 @@ type ledgerEntryWriter struct {
 	keyToEntryBatch         map[string]*xdr.LedgerEntry
 	ledgerEntryCacheWriteTx transactionalCacheWriteTx
 	maxBatchSize            int
+	changeQueue             chan xdr.LedgerEntry
 }
 
 func (l ledgerEntryWriter) UpsertLedgerEntry(entry xdr.LedgerEntry) error {
@@ -90,6 +91,9 @@ func (l ledgerEntryWriter) flush() error {
 	upsertCacheUpdates := make(map[string]*string, len(l.keyToEntryBatch))
 	for key, entry := range l.keyToEntryBatch {
 		if entry != nil {
+			// TODO(tian): is this the best place?
+			l.changeQueue <- *entry
+
 			// safe since we cast to string right away
 			encodedEntry, err := l.buffer.UnsafeMarshalBinary(entry)
 			if err != nil {
@@ -128,6 +132,7 @@ func (l ledgerEntryWriter) flush() error {
 			return err
 		}
 		for _, key := range deleteKeys {
+			// TODO(tian): should delete as well
 			l.ledgerEntryCacheWriteTx.delete(key)
 		}
 	}

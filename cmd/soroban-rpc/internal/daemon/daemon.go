@@ -219,6 +219,7 @@ func MustNew(cfg *config.Config) *Daemon {
 	} else if cfg.EventLedgerRetentionWindow == 0 && cfg.TransactionLedgerRetentionWindow > ledgerbucketwindow.DefaultEventLedgerRetentionWindow {
 		maxRetentionWindow = ledgerbucketwindow.DefaultEventLedgerRetentionWindow
 	}
+	indexerService := indexer.New(logger)
 	ingestService := ingest.NewService(ingest.Config{
 		Logger:            logger,
 		DB:                db.NewReadWriter(dbConn, maxLedgerEntryWriteBatchSize, maxRetentionWindow),
@@ -230,7 +231,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		Timeout:           cfg.IngestionTimeout,
 		OnIngestionRetry:  onIngestionRetry,
 		Daemon:            daemon,
-		IndexerService:    indexer.New(logger),
+		IndexerService:    indexerService,
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
 	})
 
@@ -250,6 +251,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		EventStore:        eventStore,
 		TransactionStore:  transactionStore,
 		Logger:            logger,
+		IndexerService:    indexerService,
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
 		PreflightGetter:   preflightWorkerPool,

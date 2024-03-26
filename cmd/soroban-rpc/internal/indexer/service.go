@@ -2,18 +2,16 @@ package indexer
 
 import (
 	"encoding/json"
+	"github.com/stellar/go/support/log"
+	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"os"
 	"strings"
-
-	"github.com/stellar/go/support/log"
-	"github.com/stellar/go/xdr"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	golg "gorm.io/gorm/logger"
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/model"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
@@ -57,7 +55,7 @@ func New(logger *log.Entry) *Service {
 	return s
 }
 
-func (s *Service) CreateEvent(tx db.LedgerEntryReadTx, ev events.EventInfoRaw) {
+func (s *Service) CreateEvent(ev events.EventInfoRaw) {
 	info, err := methods.NewEventInfoForEvent(ev.Event, ev.Cursor, ev.LedgerClosedAt, "") // don't need hash info
 	if err != nil {
 		return
@@ -88,7 +86,7 @@ func (s *Service) CreateEvent(tx db.LedgerEntryReadTx, ev events.EventInfoRaw) {
 		Value:                    value,
 		InSuccessfulContractCall: info.InSuccessfulContractCall,
 	}
-	s.CreateTokenOperation(tx, topic, string(value), event)
+	s.CreateTokenOperation(topic, string(value), event)
 	s.indexerDB.Create(&event)
 }
 

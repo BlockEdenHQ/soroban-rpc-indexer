@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer"
 	"net/http"
 	"strconv"
 	"strings"
@@ -53,6 +54,7 @@ type HandlerParams struct {
 	Logger            *log.Entry
 	PreflightGetter   methods.PreflightGetter
 	Daemon            interfaces.Daemon
+	IndexerService    *indexer.Service
 }
 
 func decorateHandlers(daemon interfaces.Daemon, logger *log.Entry, m handler.Map) handler.Map {
@@ -141,6 +143,10 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		longName             string
 		requestDurationLimit time.Duration
 	}{
+		{
+			methodName:        "pruneDatabase",
+			underlyingHandler: indexer.NewPruneDatabaseHandler(params.IndexerService, params.Logger),
+		},
 		{
 			methodName:           "getHealth",
 			underlyingHandler:    methods.NewHealthCheck(params.TransactionStore, cfg.MaxHealthyLedgerLatency),

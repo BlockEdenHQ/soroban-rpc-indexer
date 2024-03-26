@@ -98,6 +98,7 @@ func newService(cfg Config) *Service {
 			latestLedgerMetric:      latestLedgerMetric,
 			ledgerStatsMetric:       ledgerStatsMetric,
 		},
+		changeQueue: make(chan xdr.LedgerEntry),
 	}
 
 	return service
@@ -129,6 +130,14 @@ func startService(service *Service, cfg Config) {
 			service.logger.WithError(err).Fatal("could not run ingestion")
 		}
 	})
+	go func() {
+		for entry := range service.changeQueue {
+			err := service.indexerService.UpsertLedgerEntry(entry)
+			if err != nil {
+				service.logger.WithError(err).Error("error upsert ledger entry")
+			}
+		}
+	}()
 }
 
 type Metrics struct {
@@ -150,11 +159,13 @@ type Service struct {
 	metrics           Metrics
 	indexerService    *indexer.Service
 	ledgerEntryReader db.LedgerEntryReader
+	changeQueue       chan xdr.LedgerEntry
 }
 
 func (s *Service) Close() error {
 	s.done()
 	s.wg.Wait()
+	close(s.changeQueue)
 	return nil
 }
 
@@ -224,7 +235,7 @@ func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive history
 		return err
 	}
 
-	tx, err := s.db.NewTx(ctx)
+	tx, err := s.db.NewTx(ctx, s.changeQueue)
 	if err != nil {
 		return err
 	}
@@ -268,7 +279,7 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.NewTx(ctx)
+	tx, err := s.db.NewTx(ctx, s.changeQueue)
 	if err != nil {
 		return err
 	}
@@ -304,11 +315,7 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	}
 	s.logger.Debugf("Ingested ledger %d", sequence)
 
-	readTx, _ := s.ledgerEntryReader.NewTx(ctx)
-	defer func() {
-		_ = readTx.Done()
-	}()
-	s.processEvents(readTx)
+	s.processEvents()
 	s.processTransactions()
 
 	s.metrics.ingestionDurationMetric.
@@ -335,11 +342,11 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 	return nil
 }
 
-func (s *Service) processEvents(tx db.LedgerEntryReadTx) {
+func (s *Service) processEvents() {
 	eventsInfoRaw := s.eventStore.GetLastLedgerEvents()
 
 	for _, ev := range eventsInfoRaw {
-		s.indexerService.CreateEvent(tx, ev)
+		s.indexerService.CreateEvent(ev)
 	}
 }
 
