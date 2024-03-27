@@ -68,7 +68,9 @@ func main() {
 			logger.WithError(err).Error("Error UpsertLedgerEntry")
 		}
 
-		logger.Infof("processed %d", processed)
+		if processed%10000 == 0 {
+			logger.Infof("processed %d", processed)
+		}
 		processed += 1
 	}
 
