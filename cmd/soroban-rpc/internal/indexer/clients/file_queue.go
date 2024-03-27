@@ -57,6 +57,10 @@ func (fq *FileQueue) Dequeue() string {
 	}
 
 	scanner := bufio.NewScanner(fq.file)
+	const maxCapacity = 50 * 1024 * 1024 // 50MB
+	buf := make([]byte, maxCapacity)
+	scanner.Buffer(buf, maxCapacity)
+
 	for i := 0; i < fq.position; i++ {
 		if !scanner.Scan() && scanner.Err() != nil {
 			fq.logger.Errorf("Error during file scan: %v", scanner.Err())
