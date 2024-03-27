@@ -45,6 +45,8 @@ func main() {
 
 	logger.Info("start to consume")
 
+	processed := int64(0)
+
 	for scanner.Scan() {
 		item := scanner.Text()
 
@@ -65,7 +67,12 @@ func main() {
 		if err != nil {
 			logger.WithError(err).Error("Error UpsertLedgerEntry")
 		}
+
+		logger.Infof("processed %d", processed)
+		processed += 1
 	}
+
+	logger.Infof("done! congrats")
 
 	if err := scanner.Err(); err != nil {
 		logger.Errorf("error during scan: %s", err)
