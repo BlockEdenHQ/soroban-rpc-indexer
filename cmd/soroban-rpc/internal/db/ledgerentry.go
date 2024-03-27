@@ -91,9 +91,6 @@ func (l ledgerEntryWriter) flush() error {
 	upsertCacheUpdates := make(map[string]*string, len(l.keyToEntryBatch))
 	for key, entry := range l.keyToEntryBatch {
 		if entry != nil {
-			// TODO(tian): is this the best place?
-			l.changeQueue <- *entry
-
 			// safe since we cast to string right away
 			encodedEntry, err := l.buffer.UnsafeMarshalBinary(entry)
 			if err != nil {

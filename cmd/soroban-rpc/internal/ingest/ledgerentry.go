@@ -13,20 +13,38 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
-func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.ChangeReader, tx db.WriteTx, progressLogPeriod int) error {
+func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.ChangeReader, tx db.WriteTx, progressLogPeriod int, fillingFromCheckpoint bool) error {
 	entryCount := 0
 	startTime := time.Now()
 	writer := tx.LedgerEntryWriter()
 
 	changeStatsProcessor := ingest.StatsChangeProcessor{}
 	for ctx.Err() == nil {
-		if change, err := reader.Read(); err == io.EOF {
+		change, err := reader.Read()
+		if err == io.EOF {
 			return nil
-		} else if err != nil {
+		}
+		if err != nil {
 			return err
-		} else if err = ingestLedgerEntryChange(writer, change); err != nil { // TODO(Tian): there are performance and timeout issues here
-			return err
-		} else if err = changeStatsProcessor.ProcessChange(ctx, change); err != nil {
+		}
+
+		if fillingFromCheckpoint && entryCount <= 40320000 {
+			// write to file
+			s.changeQueue <- *change.Post
+		} else {
+			// TODO(tian): write to indexerDB directly
+			//err := s.indexerService.UpsertLedgerEntry(*change.Post)
+			//if err != nil {
+			//	s.logger.WithError(err).Error("error indexerService.UpsertLedgerEntry")
+			//}
+			// write to sqlite
+			err = ingestLedgerEntryChange(writer, change)
+			if err != nil {
+				return err
+			}
+		}
+
+		if err = changeStatsProcessor.ProcessChange(ctx, change); err != nil {
 			return err
 		}
 		entryCount++

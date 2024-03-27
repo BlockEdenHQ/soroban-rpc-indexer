@@ -19,7 +19,7 @@ func (s *Service) UpsertLedgerEntry(entry xdr.LedgerEntry) error {
 		return errors.Wrap(err, "could not get ledger key from entry")
 	}
 
-	bin, _ := key.MarshalBinary()
+	bin, err := key.MarshalBinary()
 	if err != nil {
 		return errors.Wrap(err, "could not marshal ledger key binary")
 	}
@@ -121,7 +121,7 @@ func (s *Service) UpsertLedgerEntry(entry xdr.LedgerEntry) error {
 				em.CreatedAt = time.Now()
 			}
 
-			if err := s.indexerDB.Save(em).Error; err != nil {
+			if err := model.UpsertContractDataEntry(s.indexerDB, em); err != nil {
 				return errors.Wrap(err, "failed to upsert or update ContractDataEntry")
 			}
 		}
@@ -129,58 +129,42 @@ func (s *Service) UpsertLedgerEntry(entry xdr.LedgerEntry) error {
 
 	if key.Account != nil {
 		em := parser.GetAccountEntryModel(entry)
-		if err := s.indexerDB.Where(&model.AccountEntry{AccountId: em.AccountId}).FirstOrCreate(em).Error; err != nil {
+		if err := model.UpsertAccountEntry(s.indexerDB, em); err != nil {
 			return errors.Wrap(err, "failed to upsert AccountEntry")
 		}
 	}
 
 	if key.TrustLine != nil {
 		em := parser.GetTrustLineEntryModel(entry)
-		if err := s.indexerDB.Where(&model.TrustLineEntry{
-			AccountId:   em.AccountId,
-			AssetType:   em.AssetType,
-			AssetCode:   em.AssetCode,
-			AssetIssuer: em.AssetIssuer,
-		}).FirstOrCreate(em).Error; err != nil {
+		if err := model.UpsertTrustLineEntry(s.indexerDB, em); err != nil {
 			return errors.Wrap(err, "failed to upsert TrustLineEntry")
 		}
 	}
 
 	if key.Offer != nil {
 		em := parser.GetOfferEntryModel(entry)
-		if err := s.indexerDB.Where(&model.OfferEntry{
-			OfferId:  em.OfferId,
-			SellerId: em.SellerId,
-		}).FirstOrCreate(em).Error; err != nil {
+		if err := model.UpsertOfferEntry(s.indexerDB, em); err != nil {
 			return errors.Wrap(err, "failed to upsert OfferEntry")
 		}
 	}
 
 	if key.Data != nil {
 		em := parser.GetDataEntryModel(entry)
-		if err := s.indexerDB.Where(
-			&model.DataEntry{
-				AccountId: em.AccountId,
-				DataName:  em.DataName,
-			}).FirstOrCreate(em).Error; err != nil {
+		if err := model.UpsertDataEntry(s.indexerDB, em); err != nil {
 			return errors.Wrap(err, "failed to upsert DataEntry")
 		}
 	}
 
 	if key.ClaimableBalance != nil {
 		em := parser.GetClaimableBalanceEntryModel(entry)
-		if err := s.indexerDB.Where(
-			&model.ClaimableBalanceEntry{
-				BalanceId: em.BalanceId,
-			},
-		).FirstOrCreate(em).Error; err != nil {
+		if err := model.UpsertClaimableBalanceEntry(s.indexerDB, em); err != nil {
 			return errors.Wrap(err, "failed to upsert ClaimableBalanceEntry")
 		}
 	}
 
 	if key.LiquidityPool != nil {
 		em := parser.GetLiquidityPoolEntryModel(entry)
-		if err := s.indexerDB.Where(&model.LiquidityPoolEntry{LiquidityPoolId: em.LiquidityPoolId}).FirstOrCreate(em).Error; err != nil {
+		if err := model.UpsertLiquidityPoolEntry(s.indexerDB, em); err != nil {
 			return errors.Wrap(err, "failed to upsert LiquidityPoolEntry")
 		}
 	}

@@ -3,6 +3,8 @@ package model
 import (
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/model/util"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type TrustLineEntry struct {
@@ -18,4 +20,22 @@ type TrustLineEntry struct {
 	SponsoringId          string        `gorm:"type:varchar(64);index"`
 	LastModifiedLedgerSeq xdr.Uint32    `gorm:"type:int;not null"`
 	util.Ts
+}
+
+func UpsertTrustLineEntry(db *gorm.DB, entry *TrustLineEntry) error {
+	// Upsert operation considering composite primary keys.
+	err := db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "account_id"},
+			{Name: "asset_type"},
+			{Name: "asset_code"},
+			{Name: "asset_issuer"},
+		}, // Composite primary keys for conflict resolution
+		DoUpdates: clause.AssignmentColumns([]string{
+			"balance", "limit", "liquidity_pool_id", "flags", "ext",
+			"sponsoring_id", "last_modified_ledger_seq",
+		}), // Specify fields to update on conflict, excluding primary keys
+	}).Create(entry).Error
+
+	return err
 }

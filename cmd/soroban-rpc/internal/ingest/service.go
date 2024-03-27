@@ -2,10 +2,12 @@ package ingest
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/clients"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 	"sync"
 	"time"
@@ -130,12 +132,11 @@ func startService(service *Service, cfg Config) {
 			service.logger.WithError(err).Fatal("could not run ingestion")
 		}
 	})
+	queue := clients.NewFileQueue("ledger_entries.txt", "ledger_entries.position.txt", service.logger)
 	go func() {
 		for entry := range service.changeQueue {
-			err := service.indexerService.UpsertLedgerEntry(entry)
-			if err != nil {
-				service.logger.WithError(err).Error("error upsert ledger entry")
-			}
+			bytes, _ := entry.MarshalBinary()
+			queue.Enqueue(base64.StdEncoding.EncodeToString(bytes))
 		}
 	}()
 }
@@ -250,7 +251,7 @@ func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive history
 		}
 	}()
 
-	if err := s.ingestLedgerEntryChanges(ctx, reader, tx, ledgerEntryBaselineProgressLogPeriod); err != nil {
+	if err := s.ingestLedgerEntryChanges(ctx, reader, tx, ledgerEntryBaselineProgressLogPeriod, true); err != nil {
 		return err
 	}
 	if err := reader.Close(); err != nil {
@@ -289,7 +290,7 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 		}
 	}()
 
-	if err := s.ingestLedgerEntryChanges(ctx, reader, tx, 0); err != nil {
+	if err := s.ingestLedgerEntryChanges(ctx, reader, tx, 0, false); err != nil {
 		return err
 	}
 	if err := reader.Close(); err != nil {

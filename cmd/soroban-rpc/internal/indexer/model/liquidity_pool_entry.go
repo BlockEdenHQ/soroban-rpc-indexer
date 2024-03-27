@@ -3,6 +3,8 @@ package model
 import (
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/model/util"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type LiquidityPoolEntry struct {
@@ -22,4 +24,24 @@ type LiquidityPoolEntry struct {
 	LastModifiedLedgerSeq    xdr.Uint32            `gorm:"type:int;not null"`
 	SponsoringId             string                `gorm:"type:varchar(64);index"`
 	util.Ts
+}
+
+func UpsertLiquidityPoolEntry(db *gorm.DB, entry *LiquidityPoolEntry) error {
+	// Assuming `LiquidityPoolId` is the unique identifier for the upsert operation
+	// Adjust the clause below based on your actual unique constraint or conflict target
+	err := db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "liquidity_pool_id"}}, // Unique or primary key column names
+		DoUpdates: clause.AssignmentColumns([]string{
+			"type", "asset_a_type", "asset_a_code", "asset_a_issuer",
+			"asset_b_type", "asset_b_code", "asset_b_issuer", "fee",
+			"reserve_a", "reserve_b", "total_pool_shares",
+			"pool_shares_trust_line_count", "last_modified_ledger_seq", "sponsoring_id",
+		}), // Specify columns to be updated on conflict
+	}).Create(entry).Error
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -87,6 +87,10 @@ dev-ubuntu-mainnet:
 migrate:
 	TZ=UTC/GMT go run $(PWD)/cmd/soroban-rpc/migrations/*.go
 
+.PHONY: dequeue
+dequeue:
+	go run cmd/soroban-rpc/internal/indexer/queue_consumer/*.go
+
 fmt:
 	cargo fmt --all
 
