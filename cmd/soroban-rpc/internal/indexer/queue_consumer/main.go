@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"github.com/joho/godotenv"
@@ -8,7 +9,6 @@ import (
 	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/clients"
 	"os"
 )
 
@@ -29,28 +29,36 @@ func main() {
 
 	logger.Info("init services")
 
-	queue := clients.NewFileQueue("ledger_entries.txt", "ledger_entries.position.txt", logger)
+	file, err := os.Open("ledger_entries.txt")
+	if err != nil {
+		logger.Errorf("failed to open file: %s", err)
+	}
+	defer file.Close() // Make sure to close the file when you're done
+
+	scanner := bufio.NewScanner(file)
+
+	const maxCapacity = 10 * 1024 * 1024 // 10MB
+	buf := make([]byte, maxCapacity)
+	scanner.Buffer(buf, maxCapacity)
 
 	indexerService := indexer.New(logger)
 
 	logger.Info("start to consume")
 
-	for {
-		item := queue.Dequeue()
-		if item == "" {
-			logger.Info("Reached the end of the queue or encountered an error")
-			break
-		}
+	for scanner.Scan() {
+		item := scanner.Text()
 
 		decodedBytes, err := decodeFromBase64(item)
 		if err != nil {
-			logger.WithError(err).Error("Error decodeFromBase64")
+			logger.WithError(err).Error("Error decodeFromBase64: " + item)
+			continue
 		}
 
 		entry := xdr.LedgerEntry{}
 		err = entry.UnmarshalBinary(decodedBytes)
 		if err != nil {
 			logger.WithError(err).Error("Error UnmarshalBinary")
+			continue
 		}
 
 		err = indexerService.UpsertLedgerEntry(entry)
@@ -59,7 +67,9 @@ func main() {
 		}
 	}
 
-	queue.Close()
+	if err := scanner.Err(); err != nil {
+		logger.Errorf("error during scan: %s", err)
+	}
 }
 
 func decodeFromBase64(encodedString string) ([]byte, error) {
