@@ -32,11 +32,10 @@ func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.Ch
 			// write to file
 			s.changeQueue <- *change.Post
 		} else {
-			// TODO(tian): write to indexerDB directly
-			//err := s.indexerService.UpsertLedgerEntry(*change.Post)
-			//if err != nil {
-			//	s.logger.WithError(err).Error("error indexerService.UpsertLedgerEntry")
-			//}
+			err := s.indexerService.UpsertLedgerEntry(*change.Post)
+			if err != nil {
+				s.logger.WithError(err).Error("error indexerService.UpsertLedgerEntry")
+			}
 			// write to sqlite
 			err = ingestLedgerEntryChange(writer, change)
 			if err != nil {
