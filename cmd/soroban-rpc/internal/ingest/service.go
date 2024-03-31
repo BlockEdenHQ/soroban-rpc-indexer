@@ -106,6 +106,8 @@ func newService(cfg Config) *Service {
 	return service
 }
 
+const ENQUEUE_LEDGER_ENTRIES_ENABLED = false
+
 func startService(service *Service, cfg Config) {
 	ctx, done := context.WithCancel(context.Background())
 	service.done = done
@@ -132,13 +134,16 @@ func startService(service *Service, cfg Config) {
 			service.logger.WithError(err).Fatal("could not run ingestion")
 		}
 	})
-	queue := clients.NewFileQueue("ledger_entries.txt", "ledger_entries.position.txt", service.logger)
-	go func() {
-		for entry := range service.changeQueue {
-			bytes, _ := entry.MarshalBinary()
-			queue.Enqueue(base64.StdEncoding.EncodeToString(bytes))
-		}
-	}()
+
+	if ENQUEUE_LEDGER_ENTRIES_ENABLED {
+		queue := clients.NewFileQueue("ledger_entries.txt", "ledger_entries.position.txt", service.logger)
+		go func() {
+			for entry := range service.changeQueue {
+				bytes, _ := entry.MarshalBinary()
+				queue.Enqueue(base64.StdEncoding.EncodeToString(bytes))
+			}
+		}()
+	}
 }
 
 type Metrics struct {
