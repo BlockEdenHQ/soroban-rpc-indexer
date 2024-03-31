@@ -32,7 +32,7 @@ func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.Ch
 			// write to file
 			s.changeQueue <- *change.Post
 		} else {
-			if entryCount > 40320000 {
+			if (fillingFromCheckpoint && entryCount > 40320000) || !fillingFromCheckpoint {
 				err := s.indexerService.UpsertLedgerEntry(*change.Post)
 				if err != nil {
 					s.logger.WithError(err).Error("error indexerService.UpsertLedgerEntry")
