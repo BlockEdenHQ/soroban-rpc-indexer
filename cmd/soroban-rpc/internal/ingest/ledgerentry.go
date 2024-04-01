@@ -28,11 +28,11 @@ func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.Ch
 			return err
 		}
 
-		if SHOULD_ENQUEUE_FILE && fillingFromCheckpoint && entryCount <= 40320000 {
+		if SHOULD_ENQUEUE_FILE && fillingFromCheckpoint && entryCount <= CUT_OFF_HEIGHT {
 			// write to file
 			s.changeQueue <- *change.Post
 		} else {
-			if change.Post != nil && ((fillingFromCheckpoint && entryCount > 40320000) || !fillingFromCheckpoint) {
+			if change.Post != nil && ((fillingFromCheckpoint && entryCount > CUT_OFF_HEIGHT) || !fillingFromCheckpoint) {
 				s.changeQueue <- *change.Post
 			}
 			// write to sqlite

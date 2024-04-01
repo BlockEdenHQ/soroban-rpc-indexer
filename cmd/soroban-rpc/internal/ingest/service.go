@@ -108,6 +108,7 @@ func newService(cfg Config) *Service {
 
 const SHOULD_ENQUEUE_FILE = false
 const SHOULD_ENQUEUE_REDIS = true
+const CUT_OFF_HEIGHT = 51034551
 
 func startService(service *Service, cfg Config) {
 	ctx, done := context.WithCancel(context.Background())
@@ -337,8 +338,10 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	}
 	s.logger.Debugf("Ingested ledger %d", sequence)
 
-	s.processEvents()
-	s.processTransactions()
+	go func() {
+		s.processEvents()
+		s.processTransactions()
+	}()
 
 	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "total"}).Observe(time.Since(startTime).Seconds())
