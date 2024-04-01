@@ -28,7 +28,7 @@ func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.Ch
 			return err
 		}
 
-		if ENQUEUE_LEDGER_ENTRIES_ENABLED && fillingFromCheckpoint && entryCount <= 40320000 {
+		if SHOULD_ENQUEUE_FILE && fillingFromCheckpoint && entryCount <= 40320000 {
 			// write to file
 			s.changeQueue <- *change.Post
 		} else {

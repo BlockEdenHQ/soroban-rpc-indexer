@@ -106,8 +106,8 @@ func newService(cfg Config) *Service {
 	return service
 }
 
-const ENQUEUE_LEDGER_ENTRIES_ENABLED = false
-const SHOULD_USE_REDIS = true
+const SHOULD_ENQUEUE_FILE = false
+const SHOULD_ENQUEUE_REDIS = true
 
 func startService(service *Service, cfg Config) {
 	ctx, done := context.WithCancel(context.Background())
@@ -136,20 +136,26 @@ func startService(service *Service, cfg Config) {
 		}
 	})
 
-	if ENQUEUE_LEDGER_ENTRIES_ENABLED {
-		queue := clients.NewFileQueue("ledger_entries.txt", "ledger_entries.position.txt", service.logger)
+	if SHOULD_ENQUEUE_FILE {
+		fileQueue := clients.NewFileQueue("ledger_entries.txt", "ledger_entries.position.txt", service.logger)
+		go func() {
+			for entry := range service.changeQueue {
+				bytes, _ := entry.MarshalBinary()
+				encodedEntry := base64.StdEncoding.EncodeToString(bytes)
+				fileQueue.Enqueue(encodedEntry)
+			}
+		}()
+	}
+
+	if SHOULD_ENQUEUE_REDIS {
 		rdb := clients.NewRedis(service.logger)
 		go func() {
 			for entry := range service.changeQueue {
 				bytes, _ := entry.MarshalBinary()
 				encodedEntry := base64.StdEncoding.EncodeToString(bytes)
-				if SHOULD_USE_REDIS {
-					err := rdb.RPush(ctx, "change_queue", encodedEntry).Err()
-					if err != nil {
-						service.logger.WithError(err).Error("error enqueue redis")
-					}
-				} else {
-					queue.Enqueue(encodedEntry)
+				err := rdb.RPush(ctx, "change_queue", encodedEntry).Err()
+				if err != nil {
+					service.logger.WithError(err).Error("error enqueue redis")
 				}
 			}
 		}()
