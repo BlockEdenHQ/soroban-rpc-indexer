@@ -108,7 +108,7 @@ func newService(cfg Config) *Service {
 
 const SHOULD_ENQUEUE_FILE = false
 const SHOULD_ENQUEUE_REDIS = true
-const CUT_OFF_HEIGHT = 51034551
+const CUT_OFF_HEIGHT = 51035451
 
 func startService(service *Service, cfg Config) {
 	ctx, done := context.WithCancel(context.Background())
