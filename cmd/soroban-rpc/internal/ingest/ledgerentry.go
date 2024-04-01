@@ -33,10 +33,7 @@ func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.Ch
 			s.changeQueue <- *change.Post
 		} else {
 			if change.Post != nil && ((fillingFromCheckpoint && entryCount > 40320000) || !fillingFromCheckpoint) {
-				err := s.indexerService.UpsertLedgerEntry(*change.Post)
-				if err != nil {
-					s.logger.WithError(err).Error("error indexerService.UpsertLedgerEntry")
-				}
+				s.changeQueue <- *change.Post
 			}
 			// write to sqlite
 			err = ingestLedgerEntryChange(writer, change)
