@@ -82,9 +82,9 @@ func (s *Service) ingestLedgerEntryChange(writer db.LedgerEntryWriter, change in
 		}
 		return writer.DeleteLedgerEntry(ledgerKey)
 	} else {
-		//if (!fillingFromCheckpoint) || (fillingFromCheckpoint && entryCount >= CUT_OFF_HEIGHT) {
-		s.enqueueChangePost(*change.Post)
-		//}
+		if (!fillingFromCheckpoint) || (fillingFromCheckpoint && entryCount >= CUT_OFF_HEIGHT) {
+			s.enqueueChangePost(*change.Post)
+		}
 		return writer.UpsertLedgerEntry(*change.Post)
 	}
 }

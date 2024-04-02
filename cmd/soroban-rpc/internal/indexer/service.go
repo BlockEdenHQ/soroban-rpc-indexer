@@ -177,6 +177,7 @@ func (s *Service) UpsertTokenOperation(to *model.TokenOperation) error {
 	return model.UpsertTokenOperation(s.indexerDB, to)
 }
 
+// key: "change_queue" value: "${number}:${base64encoded}"
 const (
 	QueueKey       = "change_queue"
 	LedgerEntry    = "1"
