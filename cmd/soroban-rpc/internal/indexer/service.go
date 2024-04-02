@@ -95,8 +95,8 @@ func (s *Service) EnqueueEvent(ev events.EventInfoRaw) {
 	s.enqueueEvent(event)
 }
 
-func (s *Service) CreateEvent(event *model.Event) {
-	s.indexerDB.Create(event)
+func (s *Service) UpsertEvent(event *model.Event) error {
+	return model.UpsertEvent(s.indexerDB, event)
 }
 
 func (s *Service) MarshalTransaction(hash string, info methods.GetTransactionResponse, tx transactions.Transaction) string {
@@ -133,8 +133,8 @@ func (s *Service) MarshalTransaction(hash string, info methods.GetTransactionRes
 	return base64.StdEncoding.EncodeToString(jsonDataPretty)
 }
 
-func (s *Service) CreateTransaction(transaction model.Transaction) {
-	s.indexerDB.Create(&transaction)
+func (s *Service) UpsertTransaction(transaction *model.Transaction) error {
+	return model.UpsertTransaction(s.indexerDB, transaction)
 }
 
 func (s *Service) enqueueTokenMetadata(tm model.TokenMetadata) {
@@ -143,7 +143,7 @@ func (s *Service) enqueueTokenMetadata(tm model.TokenMetadata) {
 		s.logger.WithError(err).Error("error cannot marshal TokenMetadata")
 	}
 	marshaled := base64.StdEncoding.EncodeToString(jsonData)
-	err = s.rdb.RPush(context.Background(), QueueKey, TokenMetadata, marshaled).Err()
+	err = s.rdb.RPush(context.Background(), QueueKey, TokenMetadata+":"+marshaled).Err()
 	if err != nil {
 		s.logger.WithError(err).Error("error push event_token_metadata")
 	}
@@ -155,7 +155,7 @@ func (s *Service) enqueueEvent(event model.Event) {
 		s.logger.WithError(err).Error("error cannot marshal event")
 	}
 	marshaledEvent := base64.StdEncoding.EncodeToString(jsonData)
-	err = s.rdb.RPush(context.Background(), QueueKey, Event, marshaledEvent).Err()
+	err = s.rdb.RPush(context.Background(), QueueKey, Event+":"+marshaledEvent).Err()
 	if err != nil {
 		s.logger.WithError(err).Error("error push event_queue")
 	}
@@ -167,7 +167,7 @@ func (s *Service) enqueueTokenOp(op model.TokenOperation) {
 		s.logger.WithError(err).Error("error cannot marshal token op")
 	}
 	marshaledTokenOp := base64.StdEncoding.EncodeToString(jsonData)
-	err = s.rdb.RPush(context.Background(), QueueKey, TokenOperation, marshaledTokenOp).Err()
+	err = s.rdb.RPush(context.Background(), QueueKey, TokenOperation+":"+marshaledTokenOp).Err()
 	if err != nil {
 		s.logger.WithError(err).Error("error push token_op")
 	}

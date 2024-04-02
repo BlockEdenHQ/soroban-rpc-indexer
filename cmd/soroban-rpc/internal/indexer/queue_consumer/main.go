@@ -44,69 +44,79 @@ func main() {
 			continue
 		}
 
-		if len(result) == 3 {
-			itemKey := result[1]
-			item := result[2]
+		if len(result) != 2 {
+			logger.WithError(err).Error("result length incorrect")
+			continue
+		}
 
-			decodedBytes, err := decodeFromBase64(item) // Assume util.DecodeFromBase64 exists
+		rawValue := result[1]
+		itemKey := rawValue[0:1]
+		item := rawValue[2:]
+
+		decodedBytes, err := decodeFromBase64(item) // Assume util.DecodeFromBase64 exists
+		if err != nil {
+			logger.WithError(err).Error("Error decodeFromBase64: " + item)
+			continue
+		}
+
+		switch itemKey {
+		case indexer.LedgerEntry:
+			entry := xdr.LedgerEntry{}
+			err = entry.UnmarshalBinary(decodedBytes)
 			if err != nil {
-				logger.WithError(err).Error("Error decodeFromBase64")
+				logger.WithError(err).Error("Error UnmarshalBinary")
 				continue
 			}
 
-			switch itemKey {
-			case indexer.LedgerEntry:
-				entry := xdr.LedgerEntry{}
-				err = entry.UnmarshalBinary(decodedBytes)
-				if err != nil {
-					logger.WithError(err).Error("Error UnmarshalBinary")
-					continue
-				}
-
-				err = indexerService.UpsertLedgerEntry(entry)
-				if err != nil {
-					logger.WithError(err).Error("Error UpsertLedgerEntry")
-				}
-				break
-			case indexer.Tx:
-				tx, err := model.NewTransaction(decodedBytes)
-				if err != nil {
-					logger.WithError(err).Error("Error NewTransaction")
-				}
-				indexerService.CreateTransaction(tx)
-				break
-			case indexer.TokenMetadata:
-				tm, err := model.NewTokenMetadata(decodedBytes)
-				if err != nil {
-					logger.WithError(err).Error("Error NewTokenMetadata")
-				}
-				err = indexerService.UpsertTokenMetadataFromStruct(&tm)
-				if err != nil {
-					logger.WithError(err).Error("Error NewTransaction")
-				}
-				break
-			case indexer.Event:
-				ev, err := model.NewEvent(decodedBytes)
-				if err != nil {
-					logger.WithError(err).Error("Error NewEvent")
-				}
-				indexerService.CreateEvent(&ev)
-				break
-			case indexer.TokenOperation:
-				to, err := model.NewTokenOperation(decodedBytes)
-				if err != nil {
-					logger.WithError(err).Error("Error NewTokenOperation")
-				}
-				err = indexerService.UpsertTokenOperation(&to)
-				if err != nil {
-					logger.WithError(err).Error("Error UpsertTokenOperation")
-				}
+			err = indexerService.UpsertLedgerEntry(entry)
+			if err != nil {
+				logger.WithError(err).Error("Error UpsertLedgerEntry")
 			}
-
-			processed++
-			if processed%10000 == 0 {
-				logger.Infof("Processed %d items", processed)
+			break
+		case indexer.Tx:
+			tx, err := model.NewTransaction(decodedBytes)
+			if err != nil {
+				logger.WithError(err).Error("Error NewTransaction")
 			}
+			err = indexerService.UpsertTransaction(&tx)
+			if err != nil {
+				logger.WithError(err).Error("Error Tx")
+			}
+			break
+		case indexer.TokenMetadata:
+			tm, err := model.NewTokenMetadata(decodedBytes)
+			if err != nil {
+				logger.WithError(err).Error("Error NewTokenMetadata")
+			}
+			err = indexerService.UpsertTokenMetadataFromStruct(&tm)
+			if err != nil {
+				logger.WithError(err).Error("Error NewTransaction")
+			}
+			break
+		case indexer.Event:
+			ev, err := model.NewEvent(decodedBytes)
+			if err != nil {
+				logger.WithError(err).Error("Error NewEvent")
+			}
+			err = indexerService.UpsertEvent(&ev)
+			if err != nil {
+				logger.WithError(err).Error("Error UpsertEvent")
+			}
+			break
+		case indexer.TokenOperation:
+			to, err := model.NewTokenOperation(decodedBytes)
+			if err != nil {
+				logger.WithError(err).Error("Error NewTokenOperation")
+			}
+			err = indexerService.UpsertTokenOperation(&to)
+			if err != nil {
+				logger.WithError(err).Error("Error UpsertTokenOperation")
+			}
+		}
+
+		processed++
+		if processed%10000 == 0 {
+			logger.Infof("Processed %d items", processed)
 		}
 	}
 }
