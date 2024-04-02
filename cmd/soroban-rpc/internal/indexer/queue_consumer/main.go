@@ -77,6 +77,7 @@ func main() {
 			tx, err := model.NewTransaction(decodedBytes)
 			if err != nil {
 				logger.WithError(err).Error("Error NewTransaction")
+				break
 			}
 			err = indexerService.UpsertTransaction(&tx)
 			if err != nil {
@@ -87,16 +88,19 @@ func main() {
 			tm, err := model.NewTokenMetadata(decodedBytes)
 			if err != nil {
 				logger.WithError(err).Error("Error NewTokenMetadata")
+				break
 			}
 			err = indexerService.UpsertTokenMetadataFromStruct(&tm)
 			if err != nil {
 				logger.WithError(err).Error("Error NewTransaction")
+				break
 			}
 			break
 		case indexer.Event:
 			ev, err := model.NewEvent(decodedBytes)
 			if err != nil {
 				logger.WithError(err).Error("Error NewEvent")
+				break
 			}
 			err = indexerService.UpsertEvent(&ev)
 			if err != nil {
@@ -107,6 +111,7 @@ func main() {
 			to, err := model.NewTokenOperation(decodedBytes)
 			if err != nil {
 				logger.WithError(err).Error("Error NewTokenOperation")
+				break
 			}
 			err = indexerService.UpsertTokenOperation(&to)
 			if err != nil {
