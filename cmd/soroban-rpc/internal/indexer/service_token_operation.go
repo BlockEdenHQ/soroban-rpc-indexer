@@ -108,7 +108,7 @@ func initTokenOpFromEvent(opType string, from string, event model.Event) model.T
 	}
 }
 
-func (s *Service) UpdateTokenMetadata(contractId string, admin string) {
+func (s *Service) enqueueUpdateTokenMetadata(contractId string, admin string) {
 	var meta model.TokenMetadata
 	if err := s.indexerDB.First(meta, contractId).Error; err != nil {
 		errors.Wrap(err, "failed to find the record")
@@ -118,13 +118,16 @@ func (s *Service) UpdateTokenMetadata(contractId string, admin string) {
 		if meta.CreatedAt == (time.Time{}) {
 			meta.CreatedAt = time.Now()
 		}
-		if err := s.indexerDB.Save(&meta).Error; err != nil {
-			errors.Wrap(err, "failed to update the record")
-		}
+
+		s.enqueueTokenMetadata(meta)
 	}
 }
 
-func (s *Service) CreateTokenOperation(topicRaw []string, value string, event model.Event) {
+func (s *Service) UpsertTokenMetadataFromStruct(tm *model.TokenMetadata) error {
+	return model.UpsertTokenMetadata(s.indexerDB, tm)
+}
+
+func (s *Service) enqueueTokenOperation(topicRaw []string, value string, event model.Event) {
 	topic := make([]string, 0, 4)
 	for _, t := range topicRaw {
 		t = strings.TrimPrefix(t, "\"")
@@ -139,9 +142,9 @@ func (s *Service) CreateTokenOperation(topicRaw []string, value string, event mo
 		tokenOp := initTokenOpFromEvent(topic[0], topic[1], event)
 		var admin = value[1 : len(value)-2]
 		tokenOp.To = &admin
-		s.indexerDB.Create(&tokenOp)
+		s.enqueueTokenOp(tokenOp)
 
-		s.UpdateTokenMetadata(event.ContractID, admin)
+		s.enqueueUpdateTokenMetadata(event.ContractID, admin)
 	case "set_authorized":
 		if len(topic) < 3 {
 			return
@@ -151,7 +154,7 @@ func (s *Service) CreateTokenOperation(topicRaw []string, value string, event mo
 		tokenOp.From = topic[1]
 		tokenOp.To = &topic[2]
 		tokenOp.Authorized = &authorized
-		s.indexerDB.Create(&tokenOp)
+		s.enqueueTokenOp(tokenOp)
 	case "approve":
 		if len(topic) < 3 {
 			return
@@ -166,7 +169,7 @@ func (s *Service) CreateTokenOperation(topicRaw []string, value string, event mo
 		tokenOp.To = &topic[2]
 		tokenOp.Amount = &amount
 		tokenOp.ExpirationLedger = &expiration
-		s.indexerDB.Create(&tokenOp)
+		s.enqueueTokenOp(tokenOp)
 	case "mint", "transfer":
 		if len(topic) < 3 {
 			return
@@ -175,7 +178,7 @@ func (s *Service) CreateTokenOperation(topicRaw []string, value string, event mo
 		tokenOp := initTokenOpFromEvent(topic[0], topic[1], event)
 		tokenOp.To = &topic[2]
 		tokenOp.Amount = &amount
-		s.indexerDB.Create(&tokenOp)
+		s.enqueueTokenOp(tokenOp)
 	case "clawback":
 		if len(topic) < 3 {
 			return
@@ -184,7 +187,7 @@ func (s *Service) CreateTokenOperation(topicRaw []string, value string, event mo
 		tokenOp := initTokenOpFromEvent(topic[0], topic[2], event)
 		tokenOp.To = &topic[1]
 		tokenOp.Amount = &amount
-		s.indexerDB.Create(&tokenOp)
+		s.enqueueTokenOp(tokenOp)
 	case "burn":
 		if len(topic) < 2 {
 			return
@@ -192,6 +195,6 @@ func (s *Service) CreateTokenOperation(topicRaw []string, value string, event mo
 		amount := getInt128FromString(value)
 		tokenOp := initTokenOpFromEvent(topic[0], topic[1], event)
 		tokenOp.Amount = &amount
-		s.indexerDB.Create(&tokenOp)
+		s.enqueueTokenOp(tokenOp)
 	}
 }

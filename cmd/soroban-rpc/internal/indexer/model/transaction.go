@@ -1,6 +1,9 @@
 package model
 
-import "github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/model/util"
+import (
+	"encoding/json"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/model/util"
+)
 
 type Transaction struct {
 	ID               string              `gorm:"column:id;primaryKey"`
@@ -19,4 +22,10 @@ type Transaction struct {
 	Preconditions    *util.Preconditions `gorm:"column:preconditions;type:jsonb"`
 	Signatures       *[]util.Signature   `gorm:"column:signatures;type:jsonb"`
 	util.Ts
+}
+
+func NewTransaction(inp []byte) (Transaction, error) {
+	var unmarshalledTokenOp Transaction
+	err := json.Unmarshal(inp, &unmarshalledTokenOp)
+	return unmarshalledTokenOp, err
 }

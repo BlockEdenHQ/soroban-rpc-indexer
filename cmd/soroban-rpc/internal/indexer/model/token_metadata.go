@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/model/util"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -23,4 +24,10 @@ func UpsertTokenMetadata(db *gorm.DB, metadata *TokenMetadata) error {
 	}).Create(metadata).Error
 
 	return err
+}
+
+func NewTokenMetadata(inp []byte) (TokenMetadata, error) {
+	var tm TokenMetadata
+	err := json.Unmarshal(inp, &tm)
+	return tm, err
 }

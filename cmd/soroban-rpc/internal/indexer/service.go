@@ -1,7 +1,10 @@
 package indexer
 
 import (
+	"context"
+	"encoding/base64"
 	"encoding/json"
+	"github.com/go-redis/redis/v8"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
@@ -20,6 +23,7 @@ import (
 type Service struct {
 	logger    *log.Entry
 	indexerDB *gorm.DB
+	rdb       *redis.Client
 }
 
 func (s *Service) scValXdrToJSON(str string) (string, error) {
@@ -34,7 +38,7 @@ func (s *Service) scValToJSON(scVal xdr.ScVal) (string, error) {
 	return strings.Replace(string(jsonData), "\\u0000", "", -1), err
 }
 
-func New(logger *log.Entry) *Service {
+func New(logger *log.Entry, rdb *redis.Client) *Service {
 	dsn := os.Getenv("POSTGRES_DSN")
 	if dsn == "" {
 		panic("POSTGRES_DSN is empty")
@@ -50,12 +54,13 @@ func New(logger *log.Entry) *Service {
 	s := &Service{
 		indexerDB: db,
 		logger:    logger,
+		rdb:       rdb,
 	}
 
 	return s
 }
 
-func (s *Service) CreateEvent(ev events.EventInfoRaw) {
+func (s *Service) EnqueueEvent(ev events.EventInfoRaw) {
 	info, err := methods.NewEventInfoForEvent(ev.Event, ev.Cursor, ev.LedgerClosedAt, "") // don't need hash info
 	if err != nil {
 		return
@@ -86,11 +91,15 @@ func (s *Service) CreateEvent(ev events.EventInfoRaw) {
 		Value:                    value,
 		InSuccessfulContractCall: info.InSuccessfulContractCall,
 	}
-	s.CreateTokenOperation(topic, string(value), event)
-	s.indexerDB.Create(&event)
+	s.enqueueTokenOperation(topic, value, event)
+	s.enqueueEvent(event)
 }
 
-func (s *Service) CreateTransaction(hash string, info methods.GetTransactionResponse, tx transactions.Transaction) {
+func (s *Service) CreateEvent(event *model.Event) {
+	s.indexerDB.Create(event)
+}
+
+func (s *Service) MarshalTransaction(hash string, info methods.GetTransactionResponse, tx transactions.Transaction) string {
 	transaction := model.Transaction{
 		ID:               hash,
 		Status:           info.Status,
@@ -116,5 +125,63 @@ func (s *Service) CreateTransaction(hash string, info methods.GetTransactionResp
 
 	var feeCharged = int32(result.FeeCharged)
 	transaction.FeeCharged = &feeCharged
+
+	jsonDataPretty, err := json.Marshal(tx)
+	if err != nil {
+		s.logger.WithError(err).Error("error cannot marshal tx")
+	}
+	return base64.StdEncoding.EncodeToString(jsonDataPretty)
+}
+
+func (s *Service) CreateTransaction(transaction model.Transaction) {
 	s.indexerDB.Create(&transaction)
 }
+
+func (s *Service) enqueueTokenMetadata(tm model.TokenMetadata) {
+	jsonData, err := json.Marshal(tm)
+	if err != nil {
+		s.logger.WithError(err).Error("error cannot marshal TokenMetadata")
+	}
+	marshaled := base64.StdEncoding.EncodeToString(jsonData)
+	err = s.rdb.RPush(context.Background(), QueueKey, TokenMetadata, marshaled).Err()
+	if err != nil {
+		s.logger.WithError(err).Error("error push event_token_metadata")
+	}
+}
+
+func (s *Service) enqueueEvent(event model.Event) {
+	jsonData, err := json.Marshal(event)
+	if err != nil {
+		s.logger.WithError(err).Error("error cannot marshal event")
+	}
+	marshaledEvent := base64.StdEncoding.EncodeToString(jsonData)
+	err = s.rdb.RPush(context.Background(), QueueKey, Event, marshaledEvent).Err()
+	if err != nil {
+		s.logger.WithError(err).Error("error push event_queue")
+	}
+}
+
+func (s *Service) enqueueTokenOp(op model.TokenOperation) {
+	jsonData, err := json.Marshal(op)
+	if err != nil {
+		s.logger.WithError(err).Error("error cannot marshal token op")
+	}
+	marshaledTokenOp := base64.StdEncoding.EncodeToString(jsonData)
+	err = s.rdb.RPush(context.Background(), QueueKey, TokenOperation, marshaledTokenOp).Err()
+	if err != nil {
+		s.logger.WithError(err).Error("error push token_op")
+	}
+}
+
+func (s *Service) UpsertTokenOperation(to *model.TokenOperation) error {
+	return model.UpsertTokenOperation(s.indexerDB, to)
+}
+
+const (
+	QueueKey       = "change_queue"
+	LedgerEntry    = "1"
+	Tx             = "2"
+	TokenMetadata  = "3"
+	Event          = "4"
+	TokenOperation = "5"
+)
