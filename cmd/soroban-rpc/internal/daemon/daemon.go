@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/clients"
 	"net/http"
 	"net/http/pprof" //nolint:gosec
 	"os"
@@ -219,7 +220,8 @@ func MustNew(cfg *config.Config) *Daemon {
 	} else if cfg.EventLedgerRetentionWindow == 0 && cfg.TransactionLedgerRetentionWindow > ledgerbucketwindow.DefaultEventLedgerRetentionWindow {
 		maxRetentionWindow = ledgerbucketwindow.DefaultEventLedgerRetentionWindow
 	}
-	indexerService := indexer.New(logger)
+	rdb := clients.NewRedis(logger)
+	indexerService := indexer.New(logger, rdb)
 	ingestService := ingest.NewService(ingest.Config{
 		Logger:            logger,
 		DB:                db.NewReadWriter(dbConn, maxLedgerEntryWriteBatchSize, maxRetentionWindow),
@@ -233,6 +235,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		Daemon:            daemon,
 		IndexerService:    indexerService,
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
+		Redis:             rdb,
 	})
 
 	ledgerEntryReader := db.NewLedgerEntryReader(dbConn)

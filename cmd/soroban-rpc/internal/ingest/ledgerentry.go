@@ -20,29 +20,13 @@ func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.Ch
 
 	changeStatsProcessor := ingest.StatsChangeProcessor{}
 	for ctx.Err() == nil {
-		change, err := reader.Read()
-		if err == io.EOF {
+		if change, err := reader.Read(); err == io.EOF {
 			return nil
-		}
-		if err != nil {
+		} else if err != nil {
 			return err
-		}
-
-		if SHOULD_ENQUEUE_FILE && fillingFromCheckpoint && entryCount <= CUT_OFF_HEIGHT {
-			// write to file
-			s.changeQueue <- *change.Post
-		} else {
-			if change.Post != nil && ((fillingFromCheckpoint && entryCount > CUT_OFF_HEIGHT) || !fillingFromCheckpoint) {
-				s.changeQueue <- *change.Post
-			}
-			// write to sqlite
-			err = ingestLedgerEntryChange(writer, change)
-			if err != nil {
-				return err
-			}
-		}
-
-		if err = changeStatsProcessor.ProcessChange(ctx, change); err != nil {
+		} else if err = s.ingestLedgerEntryChange(writer, change, fillingFromCheckpoint, entryCount); err != nil {
+			return err
+		} else if err = changeStatsProcessor.ProcessChange(ctx, change); err != nil {
 			return err
 		}
 		entryCount++
@@ -90,7 +74,7 @@ func (s *Service) ingestTempLedgerEntryEvictions(
 	return ctx.Err()
 }
 
-func ingestLedgerEntryChange(writer db.LedgerEntryWriter, change ingest.Change) error {
+func (s *Service) ingestLedgerEntryChange(writer db.LedgerEntryWriter, change ingest.Change, fillingFromCheckpoint bool, entryCount int) error {
 	if change.Post == nil {
 		ledgerKey, err := xdr.GetLedgerKeyFromData(change.Pre.Data)
 		if err != nil {
@@ -98,6 +82,9 @@ func ingestLedgerEntryChange(writer db.LedgerEntryWriter, change ingest.Change) 
 		}
 		return writer.DeleteLedgerEntry(ledgerKey)
 	} else {
+		if (!fillingFromCheckpoint) || (fillingFromCheckpoint && entryCount >= CUT_OFF_HEIGHT) {
+			s.enqueueChangePost(*change.Post)
+		}
 		return writer.UpsertLedgerEntry(*change.Post)
 	}
 }

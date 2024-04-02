@@ -2,12 +2,11 @@ package ingest
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/go-redis/redis/v8"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/clients"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 	"sync"
 	"time"
@@ -48,6 +47,7 @@ type Config struct {
 	Daemon            interfaces.Daemon
 	IndexerService    *indexer.Service
 	LedgerEntryReader db.LedgerEntryReader
+	Redis             *redis.Client
 }
 
 func NewService(cfg Config) *Service {
@@ -100,14 +100,12 @@ func newService(cfg Config) *Service {
 			latestLedgerMetric:      latestLedgerMetric,
 			ledgerStatsMetric:       ledgerStatsMetric,
 		},
-		changeQueue: make(chan xdr.LedgerEntry),
+		rdb: cfg.Redis,
 	}
 
 	return service
 }
 
-const SHOULD_ENQUEUE_FILE = false
-const SHOULD_ENQUEUE_REDIS = true
 const CUT_OFF_HEIGHT = 51035451
 
 func startService(service *Service, cfg Config) {
@@ -136,31 +134,6 @@ func startService(service *Service, cfg Config) {
 			service.logger.WithError(err).Fatal("could not run ingestion")
 		}
 	})
-
-	if SHOULD_ENQUEUE_FILE {
-		fileQueue := clients.NewFileQueue("ledger_entries.txt", "ledger_entries.position.txt", service.logger)
-		go func() {
-			for entry := range service.changeQueue {
-				bytes, _ := entry.MarshalBinary()
-				encodedEntry := base64.StdEncoding.EncodeToString(bytes)
-				fileQueue.Enqueue(encodedEntry)
-			}
-		}()
-	}
-
-	if SHOULD_ENQUEUE_REDIS {
-		rdb := clients.NewRedis(service.logger)
-		go func() {
-			for entry := range service.changeQueue {
-				bytes, _ := entry.MarshalBinary()
-				encodedEntry := base64.StdEncoding.EncodeToString(bytes)
-				err := rdb.RPush(ctx, "change_queue", encodedEntry).Err()
-				if err != nil {
-					service.logger.WithError(err).Error("error enqueue redis")
-				}
-			}
-		}()
-	}
 }
 
 type Metrics struct {
@@ -182,13 +155,12 @@ type Service struct {
 	metrics           Metrics
 	indexerService    *indexer.Service
 	ledgerEntryReader db.LedgerEntryReader
-	changeQueue       chan xdr.LedgerEntry
+	rdb               *redis.Client
 }
 
 func (s *Service) Close() error {
 	s.done()
 	s.wg.Wait()
-	close(s.changeQueue)
 	return nil
 }
 
@@ -258,7 +230,7 @@ func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive history
 		return err
 	}
 
-	tx, err := s.db.NewTx(ctx, s.changeQueue)
+	tx, err := s.db.NewTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -302,7 +274,7 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.NewTx(ctx, s.changeQueue)
+	tx, err := s.db.NewTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -338,10 +310,8 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	}
 	s.logger.Debugf("Ingested ledger %d", sequence)
 
-	go func() {
-		s.processEvents()
-		s.processTransactions()
-	}()
+	s.processEvents()
+	s.processTransactions()
 
 	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "total"}).Observe(time.Since(startTime).Seconds())
@@ -371,7 +341,7 @@ func (s *Service) processEvents() {
 	eventsInfoRaw := s.eventStore.GetLastLedgerEvents()
 
 	for _, ev := range eventsInfoRaw {
-		s.indexerService.CreateEvent(ev)
+		s.indexerService.EnqueueEvent(ev)
 	}
 }
 
@@ -391,6 +361,7 @@ func (s *Service) processTransactions() {
 		if err != nil {
 			continue
 		}
-		s.indexerService.CreateTransaction(hash, info, tx)
+
+		s.enqueueTransaction(hash, info, tx)
 	}
 }

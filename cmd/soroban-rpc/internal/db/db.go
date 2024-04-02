@@ -29,7 +29,7 @@ const (
 )
 
 type ReadWriter interface {
-	NewTx(ctx context.Context, changeQueue chan xdr.LedgerEntry) (WriteTx, error)
+	NewTx(ctx context.Context) (WriteTx, error)
 	GetLatestLedgerSequence(ctx context.Context) (uint32, error)
 }
 
@@ -152,7 +152,7 @@ func (rw *readWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, erro
 	return getLatestLedgerSequence(ctx, rw.db, &rw.db.cache)
 }
 
-func (rw *readWriter) NewTx(ctx context.Context, changeQueue chan xdr.LedgerEntry) (WriteTx, error) {
+func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 	txSession := rw.db.Clone()
 	if err := txSession.Begin(ctx); err != nil {
 		return nil, err
@@ -174,7 +174,6 @@ func (rw *readWriter) NewTx(ctx context.Context, changeQueue chan xdr.LedgerEntr
 			keyToEntryBatch:         make(map[string]*xdr.LedgerEntry, rw.maxBatchSize),
 			ledgerEntryCacheWriteTx: db.cache.ledgerEntries.newWriteTx(rw.maxBatchSize),
 			maxBatchSize:            rw.maxBatchSize,
-			changeQueue:             changeQueue,
 		},
 		ledgerRetentionWindow: rw.ledgerRetentionWindow,
 	}, nil

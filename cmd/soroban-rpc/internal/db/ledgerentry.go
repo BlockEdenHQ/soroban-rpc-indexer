@@ -47,7 +47,6 @@ type ledgerEntryWriter struct {
 	keyToEntryBatch         map[string]*xdr.LedgerEntry
 	ledgerEntryCacheWriteTx transactionalCacheWriteTx
 	maxBatchSize            int
-	changeQueue             chan xdr.LedgerEntry
 }
 
 func (l ledgerEntryWriter) UpsertLedgerEntry(entry xdr.LedgerEntry) error {

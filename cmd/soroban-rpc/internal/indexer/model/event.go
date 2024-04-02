@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/model/util"
 	"gorm.io/gorm"
@@ -33,4 +34,10 @@ func UpsertEvent(db *gorm.DB, event *Event) error {
 	}).Create(event).Error
 
 	return err
+}
+
+func NewEvent(inp []byte) (Event, error) {
+	var event Event
+	err := json.Unmarshal(inp, &event)
+	return event, err
 }

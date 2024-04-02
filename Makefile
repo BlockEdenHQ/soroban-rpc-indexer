@@ -75,9 +75,9 @@ check: Cargo.lock
 watch:
 	cargo watch --clear --watch-when-idle --shell '$(MAKE)'
 
-.PHONY: dev-mac-x86-mainnet
-dev-mac-x86-mainnet:
-	TZ=UTC/GMT go run $(PWD)/cmd/soroban-rpc/main.go --endpoint 0.0.0.0:81 --stellar-core-binary-path $(PWD)/../stellar-core/src/stellar-core --captive-core-config-path $(PWD)/cmd/soroban-rpc/config/stellar-captive-core-live.toml --history-archive-urls https://history.stellar.org/prd/core-live/core_live_001,https://history.stellar.org/prd/core-live/core_live_002 --network-passphrase "Public Global Stellar Network ; September 2015"
+.PHONY: dev-mac
+dev-mac:
+	TZ=UTC/GMT go run $(PWD)/cmd/soroban-rpc/main.go --admin-endpoint 0.0.0.0:4778 --endpoint 0.0.0.0:81 --stellar-core-binary-path $(PWD)/../stellar-core/src/stellar-core --captive-core-config-path $(PWD)/cmd/soroban-rpc/config/stellar-captive-core-live.toml --history-archive-urls https://history.stellar.org/prd/core-live/core_live_001,https://history.stellar.org/prd/core-live/core_live_002 --network-passphrase "Public Global Stellar Network ; September 2015"
 
 .PHONY: dev-ubuntu-mainnet
 dev-ubuntu-mainnet:
