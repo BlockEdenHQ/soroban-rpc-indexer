@@ -8,8 +8,10 @@ import (
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/indexer/model/util"
 	"os"
 	"strings"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -101,10 +103,13 @@ func (s *Service) UpsertEvent(event *model.Event) error {
 
 func (s *Service) MarshalTransaction(hash string, info methods.GetTransactionResponse, tx transactions.Transaction) string {
 	transaction := model.Transaction{
-		ID:               hash,
-		Status:           info.Status,
-		Ledger:           &info.Ledger,
-		CreatedAt:        &info.LedgerCloseTime,
+		ID:     hash,
+		Status: info.Status,
+		Ledger: &info.Ledger,
+		Ts: util.Ts{
+			CreatedAt: time.Unix(info.LedgerCloseTime, 0).UTC(),
+			UpdatedAt: time.Now(),
+		},
 		ApplicationOrder: &info.ApplicationOrder,
 		FeeBump:          &info.FeeBump,
 	}
