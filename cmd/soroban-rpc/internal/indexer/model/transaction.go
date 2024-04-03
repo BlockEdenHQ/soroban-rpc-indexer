@@ -31,7 +31,7 @@ func UpsertTransaction(db *gorm.DB, tx *Transaction) error {
 		DoUpdates: clause.AssignmentColumns([]string{"status", "ledger", "created_at", "application_order", "fee_bump",
 			"fee_bump_info", "fee", "fee_charged", "sequence", "source_account", "muxed_account_id", "memo", "preconditions",
 			"signatures"}), // List columns to update
-	}).Create(&tx).Error
+	}).Create(tx).Error
 
 	return err
 }
