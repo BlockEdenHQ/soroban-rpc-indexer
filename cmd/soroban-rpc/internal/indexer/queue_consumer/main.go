@@ -76,7 +76,7 @@ func main() {
 		case indexer.Tx:
 			tx, err := model.NewTransaction(decodedBytes)
 			if err != nil {
-				logger.WithError(err).Error("Error NewTransaction")
+				logger.WithError(err).Error("Error NewTransaction: " + item)
 				break
 			}
 			err = indexerService.UpsertTransaction(&tx)
@@ -92,7 +92,7 @@ func main() {
 			}
 			err = indexerService.UpsertTokenMetadataFromStruct(&tm)
 			if err != nil {
-				logger.WithError(err).Error("Error NewTransaction")
+				logger.WithError(err).Error("Error UpsertTokenMetadataFromStruct")
 				break
 			}
 			break
