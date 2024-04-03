@@ -131,7 +131,7 @@ func (s *Service) MarshalTransaction(hash string, info methods.GetTransactionRes
 	var feeCharged = int32(result.FeeCharged)
 	transaction.FeeCharged = &feeCharged
 
-	jsonDataPretty, err := json.Marshal(tx)
+	jsonDataPretty, err := json.Marshal(transaction)
 	if err != nil {
 		s.logger.WithError(err).Error("error cannot marshal tx")
 	}
