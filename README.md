@@ -9,7 +9,14 @@ This project is for the indexing service of BlockEden x Stellar.
 
 # setup
 
-1. checkout `stellar-core` to branch `v20.3.0`，then build and install：
+```bash
+wget -qO - https://apt.stellar.org/SDF.asc | sudo apt-key add -
+echo "deb https://apt.stellar.org $(lsb_release -cs) stable" | sudo tee -a /etc/apt/sources.list.d/SDF.list
+sudo apt update
+sudo apt install stellar-core
+```
+
+Or if you want to build from source, checkout `stellar-core` to branch `v20.3.0`，then build and install：
 
 prepare the environment https://github.com/stellar/stellar-core/blob/master/INSTALL.md#ubuntu and then
 
@@ -29,7 +36,10 @@ make install
 ```
 
 
+
 2. build and run this indexer
+
+
 
 ```bash
 cd ~
@@ -60,13 +70,13 @@ This project is for futurenet use mainly, but can also be configured to use in t
 
 ## How to install Golang & Rust?
 
-
+Install build tools first https://github.com/stellar/stellar-core/blob/master/INSTALL.md#ubuntu
 
 ```
 # golang
 sudo add-apt-repository ppa:longsleep/golang-backports
 sudo apt update
-sudo apt install golang-go=1.21
+sudo apt install golang-go
 
 # rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
