@@ -1,6 +1,3 @@
-# soroban-rpc
-RPC Server for Soroban Contracts.
-
 # soroban-indexer
 
 This project is for the indexing service of BlockEden x Stellar.
