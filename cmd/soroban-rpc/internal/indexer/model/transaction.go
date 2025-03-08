@@ -11,6 +11,7 @@ type Transaction struct {
 	ID               string              `gorm:"column:id;primaryKey"`
 	Status           string              `gorm:"column:status"`
 	Ledger           *uint32             `gorm:"column:ledger"`
+	CreatedAt        *int64              `gorm:"column:created_at"`
 	ApplicationOrder *int32              `gorm:"column:application_order"`
 	FeeBump          *bool               `gorm:"column:fee_bump"`
 	FeeBumpInfo      *util.FeeBumpInfo   `gorm:"column:fee_bump_info;type:jsonb"`

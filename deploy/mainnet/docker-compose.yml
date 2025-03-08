@@ -1,0 +1,20 @@
+services:
+  soroban-rpc:
+    build:
+      context: ../..
+      dockerfile: deploy/mainnet/Dockerfile
+    container_name: soroban-rpc-mainnet
+    # Use .env file from project root
+    env_file: ../../.env
+    ports:
+      - "80:80"
+    environment:
+      - TZ=UTC/GMT
+      - POSTGRES_DSN=$POSTGRES_DSN
+    volumes:
+      - ./stellar-captive-core-live.toml:/app/cmd/soroban-rpc/config/stellar-captive-core-live.toml
+      - soroban-data:/data
+    restart: unless-stopped
+
+volumes:
+  soroban-data:
