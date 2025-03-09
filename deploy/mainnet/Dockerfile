@@ -1,3 +1,6 @@
+# Get stellar-core from the official image (as fallback)
+FROM stellar/stellar-core:latest AS stellar-core
+
 # Build environment
 FROM golang:1.21 AS build-env
 
@@ -29,20 +32,38 @@ ENV PATH="$PATH:/root/.cargo/bin"
 # Create app directory
 WORKDIR /app
 
+# Copy stellar-core binary from the stellar-core image as fallback
+COPY --from=stellar-core /usr/bin/stellar-core /tmp/stellar-core
+
 # Install libc++ dependencies manually (to avoid version conflicts)
 RUN apt-get update && apt-get install -y \
-    libc++1-10 \
-    libc++abi1-10 \
+    libc++1 \
+    libc++abi1 \
     libboost-all-dev \
     libsodium-dev \
     libsqlite3-dev
 
-# Add Stellar apt repository
+# Add Stellar apt repositories (both stable and unstable)
 RUN wget -qO - https://apt.stellar.org/SDF.asc | apt-key add - \
-    && echo "deb https://apt.stellar.org focal stable" > /etc/apt/sources.list.d/SDF-stable.list
+    && echo "deb https://apt.stellar.org focal stable" > /etc/apt/sources.list.d/SDF-stable.list \
+    && echo "deb https://apt.stellar.org focal unstable" > /etc/apt/sources.list.d/SDF-unstable.list
 
-# Update apt and install stellar-core
-RUN apt-get update && apt-get install -y stellar-core
+# Update apt and try to install stellar-core with specific version if available
+RUN apt-get update && apt-get install -y stellar-core || \
+    (apt-get update && apt-cache madison stellar-core && \
+     apt-get install -y stellar-core=20.2.0-1716.rc3.34d82fc00.focal || \
+     apt-get install -y stellar-core || \
+     (echo "Falling back to copying stellar-core from Docker image" && \
+      mkdir -p /usr/local/bin && \
+      cp /tmp/stellar-core /usr/local/bin/stellar-core && \
+      chmod +x /usr/local/bin/stellar-core))
+
+# Copy necessary libraries from the stellar-core image as fallback
+COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libc++*.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libpq*.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libboost*.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libsodium*.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libsqlite*.so* /usr/lib/x86_64-linux-gnu/
 
 # Ensure library paths are properly set
 RUN ldconfig
@@ -74,5 +95,10 @@ ENV LD_LIBRARY_PATH="/app/cmd/soroban-rpc/lib/preflight/target/release:/usr/lib:
 # Set the entrypoint to run the binary directly
 RUN cd /app && make build-soroban-rpc
 
-# Set the entrypoint
-ENTRYPOINT ["sh", "-c", "TZ=UTC/GMT /app/soroban-rpc --endpoint 0.0.0.0:80 --stellar-core-timeout \"50s\" --stellar-core-binary-path $(which stellar-core) --captive-core-config-path /app/cmd/soroban-rpc/config/stellar-captive-core-live.toml --history-archive-urls https://history.stellar.org/prd/core-live/core_live_001,https://history.stellar.org/prd/core-live/core_live_002 --network-passphrase \"Public Global Stellar Network ; September 2015\""]
+# Find stellar-core binary and verify it works
+RUN which stellar-core || which /usr/local/bin/stellar-core || echo "stellar-core not found in PATH"
+RUN (stellar-core version || /usr/local/bin/stellar-core version) || echo "stellar-core version check failed"
+
+# Set the entrypoint with fallback paths for stellar-core
+ENTRYPOINT ["sh", "-c", "CORE_PATH=$(which stellar-core 2>/dev/null || echo /usr/local/bin/stellar-core) && \
+TZ=UTC/GMT /app/soroban-rpc --endpoint 0.0.0.0:80 --stellar-core-timeout \"50s\" --stellar-core-binary-path $CORE_PATH --captive-core-config-path /app/cmd/soroban-rpc/config/stellar-captive-core-live.toml --history-archive-urls https://history.stellar.org/prd/core-live/core_live_001,https://history.stellar.org/prd/core-live/core_live_002 --network-passphrase \"Public Global Stellar Network ; September 2015\""]
