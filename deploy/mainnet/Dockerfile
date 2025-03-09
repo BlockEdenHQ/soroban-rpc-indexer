@@ -41,7 +41,11 @@ RUN apt-get update && apt-get install -y \
     libc++abi1 \
     libboost-all-dev \
     libsodium-dev \
-    libsqlite3-dev
+    libsqlite3-dev \
+    libssl1.1 || \
+    (echo "libssl1.1 not found in default repos, adding Debian repo" && \
+     echo "deb http://security.debian.org/debian-security bullseye-security main" > /etc/apt/sources.list.d/debian-security.list && \
+     apt-get update && apt-get install -y libssl1.1)
 
 # Add Stellar apt repositories (both stable and unstable)
 RUN wget -qO - https://apt.stellar.org/SDF.asc | apt-key add - \
@@ -64,6 +68,8 @@ COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libpq*.so* /usr/lib/x86_64-li
 COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libboost*.so* /usr/lib/x86_64-linux-gnu/
 COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libsodium*.so* /usr/lib/x86_64-linux-gnu/
 COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libsqlite*.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libssl*.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libcrypto*.so* /usr/lib/x86_64-linux-gnu/
 
 # Ensure library paths are properly set
 RUN ldconfig
@@ -94,6 +100,17 @@ ENV LD_LIBRARY_PATH="/app/cmd/soroban-rpc/lib/preflight/target/release:/usr/lib:
 
 # Set the entrypoint to run the binary directly
 RUN cd /app && make build-soroban-rpc
+
+# Check for OpenSSL library
+RUN ls -la /usr/lib/x86_64-linux-gnu/libssl* || \
+    (echo "libssl not found in expected location, downloading manually" && \
+     mkdir -p /tmp/libssl && cd /tmp/libssl && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.19_amd64.deb && \
+     dpkg -x libssl1.1_1.1.1f-1ubuntu2.19_amd64.deb . && \
+     cp -a usr/lib/x86_64-linux-gnu/libssl.so* /usr/lib/x86_64-linux-gnu/ && \
+     cp -a usr/lib/x86_64-linux-gnu/libcrypto.so* /usr/lib/x86_64-linux-gnu/ && \
+     ldconfig && \
+     ls -la /usr/lib/x86_64-linux-gnu/libssl*)
 
 # Find stellar-core binary and verify it works
 RUN which stellar-core || which /usr/local/bin/stellar-core || echo "stellar-core not found in PATH"
