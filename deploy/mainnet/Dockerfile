@@ -42,10 +42,12 @@ RUN apt-get update && apt-get install -y \
     libboost-all-dev \
     libsodium-dev \
     libsqlite3-dev \
+    libldap-2.4-2 \
+    libldap-common \
     libssl1.1 || \
     (echo "libssl1.1 not found in default repos, adding Debian repo" && \
      echo "deb http://security.debian.org/debian-security bullseye-security main" > /etc/apt/sources.list.d/debian-security.list && \
-     apt-get update && apt-get install -y libssl1.1)
+     apt-get update && apt-get install -y libssl1.1 libldap-2.4-2 libldap-common)
 
 # Add Stellar apt repositories (both stable and unstable)
 RUN wget -qO - https://apt.stellar.org/SDF.asc | apt-key add - \
@@ -70,6 +72,8 @@ COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libsodium*.so* /usr/lib/x86_6
 COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libsqlite*.so* /usr/lib/x86_64-linux-gnu/
 COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libssl*.so* /usr/lib/x86_64-linux-gnu/
 COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libcrypto*.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libldap*.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/liblber*.so* /usr/lib/x86_64-linux-gnu/
 
 # Ensure library paths are properly set
 RUN ldconfig
@@ -112,8 +116,33 @@ RUN ls -la /usr/lib/x86_64-linux-gnu/libssl* || \
      ldconfig && \
      ls -la /usr/lib/x86_64-linux-gnu/libssl*)
 
+# Check for LDAP libraries
+RUN ls -la /usr/lib/x86_64-linux-gnu/libldap* || \
+    (echo "libldap not found in expected location, downloading manually" && \
+     mkdir -p /tmp/libldap && cd /tmp/libldap && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.9_amd64.deb && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/o/openldap/libldap-common_2.4.49+dfsg-2ubuntu1.9_all.deb && \
+     dpkg -x libldap-2.4-2_2.4.49+dfsg-2ubuntu1.9_amd64.deb . && \
+     dpkg -x libldap-common_2.4.49+dfsg-2ubuntu1.9_all.deb . && \
+     cp -a usr/lib/x86_64-linux-gnu/libldap*.so* /usr/lib/x86_64-linux-gnu/ && \
+     cp -a usr/lib/x86_64-linux-gnu/liblber*.so* /usr/lib/x86_64-linux-gnu/ && \
+     ldconfig && \
+     ls -la /usr/lib/x86_64-linux-gnu/libldap*)
+
+# Install all possible dependencies that stellar-core might need
+RUN apt-get update && apt-get install -y \
+    libsasl2-2 \
+    libsasl2-modules \
+    libgnutls30 \
+    libgssapi-krb5-2 \
+    libk5crypto3 \
+    libkrb5-3 \
+    libkrb5support0 \
+    libsasl2-modules-gssapi-mit || echo "Some dependencies could not be installed"
+
 # Find stellar-core binary and verify it works
 RUN which stellar-core || which /usr/local/bin/stellar-core || echo "stellar-core not found in PATH"
+RUN ldd $(which stellar-core 2>/dev/null || echo /usr/local/bin/stellar-core) || echo "Could not check stellar-core dependencies"
 RUN (stellar-core version || /usr/local/bin/stellar-core version) || echo "stellar-core version check failed"
 
 # Set the entrypoint with fallback paths for stellar-core
