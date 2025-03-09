@@ -1,8 +1,8 @@
 # Get stellar-core from the official image (as fallback)
 FROM stellar/stellar-core:latest AS stellar-core
 
-# Build environment
-FROM golang:1.21 AS build-env
+# Build environment - use golang with Ubuntu 20.04 (focal) base
+FROM golang:1.21-focal AS build-env
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget
 
-# Final image
-FROM golang:1.21
+# Final image - use Ubuntu 20.04 (focal) which is compatible with stellar-core
+FROM golang:1.21-focal
 
 # Install required dependencies
 RUN apt-get update && apt-get install -y \
@@ -57,10 +57,22 @@ RUN mkdir -p /usr/local/bin && \
 # Copy ALL libraries from the stellar-core image to ensure we have everything needed
 COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/*.so* /usr/lib/x86_64-linux-gnu/
 
-# Copy specific libraries that might be in different locations
-COPY --from=stellar-core /usr/lib/*.so* /usr/lib/ || true
-COPY --from=stellar-core /lib/x86_64-linux-gnu/*.so* /lib/x86_64-linux-gnu/ || true
-COPY --from=stellar-core /lib/*.so* /lib/ || true
+# Copy specific libraries that might be missing
+COPY --from=stellar-core /usr/bin/stellar-core /usr/local/bin/
+RUN chmod +x /usr/local/bin/stellar-core
+
+# Create symbolic links for libraries that might have different names
+RUN if [ -f /usr/lib/x86_64-linux-gnu/libgssapi_krb5.so.2 ] && [ ! -f /usr/lib/x86_64-linux-gnu/libgssapi.so.3 ]; then \
+        ln -s /usr/lib/x86_64-linux-gnu/libgssapi_krb5.so.2 /usr/lib/x86_64-linux-gnu/libgssapi.so.3; \
+    fi
+
+# Add Heimdal GSSAPI libraries manually
+RUN apt-get update && apt-get install -y libgssapi3-heimdal || \
+    (mkdir -p /tmp/heimdal && cd /tmp/heimdal && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/h/heimdal/libgssapi3-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb && \
+     dpkg -x libgssapi3-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb . && \
+     cp -a usr/lib/x86_64-linux-gnu/libgssapi*.so* /usr/lib/x86_64-linux-gnu/ && \
+     ldconfig)
 
 # Ensure library paths are properly set
 RUN ldconfig
@@ -170,6 +182,30 @@ RUN apt-get update && apt-get install -y \
 # Verify stellar-core binary works
 RUN ls -la /usr/local/bin/stellar-core
 RUN ldd /usr/local/bin/stellar-core || echo "Could not check stellar-core dependencies"
+
+# Install any missing libraries identified by ldd
+RUN ldd /usr/local/bin/stellar-core 2>&1 | grep "not found" | awk '{print $1}' > /tmp/missing_libs.txt || true
+RUN if [ -s /tmp/missing_libs.txt ]; then \
+        echo "Missing libraries detected:" && cat /tmp/missing_libs.txt; \
+        for lib in $(cat /tmp/missing_libs.txt); do \
+            apt-cache search $lib | grep -v dev; \
+        done; \
+    else \
+        echo "No missing libraries detected"; \
+    fi
+
+# Install specific Heimdal libraries directly
+RUN apt-get update && apt-get install -y \
+    libgssapi3-heimdal \
+    libheimntlm0-heimdal \
+    libheimbase1-heimdal \
+    libhx509-5-heimdal \
+    libhcrypto4-heimdal \
+    libroken18-heimdal \
+    libasn1-8-heimdal \
+    libwind0-heimdal || echo "Could not install some Heimdal libraries"
+
+# Try to run stellar-core version
 RUN /usr/local/bin/stellar-core version || echo "stellar-core version check failed"
 
 # Set the entrypoint with direct path to stellar-core
