@@ -22,7 +22,7 @@ services:
       dockerfile: deploy/mainnet/Dockerfile
     container_name: soroban-dequeue-1
     env_file: ../../.env
-    command: ["go", "run", "cmd/soroban-rpc/internal/indexer/queue_consumer/*.go"]
+    command: ["sh", "-c", "cd /app && go run cmd/soroban-rpc/internal/indexer/queue_consumer/*.go"]
     environment:
       - TZ=UTC/GMT
       - POSTGRES_DSN=$POSTGRES_DSN
@@ -34,7 +34,7 @@ services:
       dockerfile: deploy/mainnet/Dockerfile
     container_name: soroban-dequeue-2
     env_file: ../../.env
-    command: ["go", "run", "cmd/soroban-rpc/internal/indexer/queue_consumer/*.go"]
+    command: ["sh", "-c", "cd /app && go run cmd/soroban-rpc/internal/indexer/queue_consumer/*.go"]
     environment:
       - TZ=UTC/GMT
       - POSTGRES_DSN=$POSTGRES_DSN
@@ -46,7 +46,7 @@ services:
       dockerfile: deploy/mainnet/Dockerfile
     container_name: soroban-dequeue-3
     env_file: ../../.env
-    command: ["go", "run", "cmd/soroban-rpc/internal/indexer/queue_consumer/*.go"]
+    command: ["sh", "-c", "cd /app && go run cmd/soroban-rpc/internal/indexer/queue_consumer/*.go"]
     environment:
       - TZ=UTC/GMT
       - POSTGRES_DSN=$POSTGRES_DSN
@@ -58,7 +58,7 @@ services:
       dockerfile: deploy/mainnet/Dockerfile
     container_name: soroban-dequeue-4
     env_file: ../../.env
-    command: ["go", "run", "cmd/soroban-rpc/internal/indexer/queue_consumer/*.go"]
+    command: ["sh", "-c", "cd /app && go run cmd/soroban-rpc/internal/indexer/queue_consumer/*.go"]
     environment:
       - TZ=UTC/GMT
       - POSTGRES_DSN=$POSTGRES_DSN
@@ -70,7 +70,7 @@ services:
       dockerfile: deploy/mainnet/Dockerfile
     container_name: soroban-dequeue-5
     env_file: ../../.env
-    command: ["go", "run", "cmd/soroban-rpc/internal/indexer/queue_consumer/*.go"]
+    command: ["sh", "-c", "cd /app && go run cmd/soroban-rpc/internal/indexer/queue_consumer/*.go"]
     environment:
       - TZ=UTC/GMT
       - POSTGRES_DSN=$POSTGRES_DSN
