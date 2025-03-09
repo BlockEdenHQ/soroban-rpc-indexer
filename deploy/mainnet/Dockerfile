@@ -22,15 +22,6 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     postgresql-client
 
-# Remove potentially conflicting libc++ versions (if they exist)
-RUN apt-get remove -y libc++1-10 libc++abi1-10 || true
-
-# Add Stellar apt repository and install stellar-core
-RUN wget -qO - https://apt.stellar.org/SDF.asc | apt-key add - \
-    && echo "deb https://apt.stellar.org focal unstable" > /etc/apt/sources.list.d/SDF-unstable.list \
-    && apt-get update \
-    && apt-get install -y libc++1 libc++abi1
-
 # Install Rust and Cargo
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="$PATH:/root/.cargo/bin"
@@ -38,7 +29,19 @@ ENV PATH="$PATH:/root/.cargo/bin"
 # Create app directory
 WORKDIR /app
 
-# Install stellar-core from apt repository
+# Install libc++ dependencies manually (to avoid version conflicts)
+RUN apt-get update && apt-get install -y \
+    libc++1-10 \
+    libc++abi1-10 \
+    libboost-all-dev \
+    libsodium-dev \
+    libsqlite3-dev
+
+# Add Stellar apt repository
+RUN wget -qO - https://apt.stellar.org/SDF.asc | apt-key add - \
+    && echo "deb https://apt.stellar.org focal stable" > /etc/apt/sources.list.d/SDF-stable.list
+
+# Update apt and install stellar-core
 RUN apt-get update && apt-get install -y stellar-core
 
 # Ensure library paths are properly set
