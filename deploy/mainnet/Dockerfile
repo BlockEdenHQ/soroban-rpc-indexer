@@ -49,31 +49,18 @@ RUN apt-get update && apt-get install -y \
      echo "deb http://security.debian.org/debian-security bullseye-security main" > /etc/apt/sources.list.d/debian-security.list && \
      apt-get update && apt-get install -y libssl1.1 libldap-2.4-2 libldap-common)
 
-# Add Stellar apt repositories (both stable and unstable)
-RUN wget -qO - https://apt.stellar.org/SDF.asc | apt-key add - \
-    && echo "deb https://apt.stellar.org focal stable" > /etc/apt/sources.list.d/SDF-stable.list \
-    && echo "deb https://apt.stellar.org focal unstable" > /etc/apt/sources.list.d/SDF-unstable.list
+# Skip apt installation and use the stellar-core binary directly from the Docker image
+RUN mkdir -p /usr/local/bin && \
+    cp /tmp/stellar-core /usr/local/bin/stellar-core && \
+    chmod +x /usr/local/bin/stellar-core
 
-# Update apt and try to install stellar-core with specific version if available
-RUN apt-get update && apt-get install -y stellar-core || \
-    (apt-get update && apt-cache madison stellar-core && \
-     apt-get install -y stellar-core=20.2.0-1716.rc3.34d82fc00.focal || \
-     apt-get install -y stellar-core || \
-     (echo "Falling back to copying stellar-core from Docker image" && \
-      mkdir -p /usr/local/bin && \
-      cp /tmp/stellar-core /usr/local/bin/stellar-core && \
-      chmod +x /usr/local/bin/stellar-core))
+# Copy ALL libraries from the stellar-core image to ensure we have everything needed
+COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/*.so* /usr/lib/x86_64-linux-gnu/
 
-# Copy necessary libraries from the stellar-core image as fallback
-COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libc++*.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libpq*.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libboost*.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libsodium*.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libsqlite*.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libssl*.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libcrypto*.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/libldap*.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=stellar-core /usr/lib/x86_64-linux-gnu/liblber*.so* /usr/lib/x86_64-linux-gnu/
+# Copy specific libraries that might be in different locations
+COPY --from=stellar-core /usr/lib/*.so* /usr/lib/ || true
+COPY --from=stellar-core /lib/x86_64-linux-gnu/*.so* /lib/x86_64-linux-gnu/ || true
+COPY --from=stellar-core /lib/*.so* /lib/ || true
 
 # Ensure library paths are properly set
 RUN ldconfig
@@ -129,6 +116,38 @@ RUN ls -la /usr/lib/x86_64-linux-gnu/libldap* || \
      ldconfig && \
      ls -la /usr/lib/x86_64-linux-gnu/libldap*)
 
+# Check for Heimdal GSSAPI libraries
+RUN ls -la /usr/lib/x86_64-linux-gnu/libgssapi* || \
+    (echo "libgssapi not found in expected location, downloading manually" && \
+     mkdir -p /tmp/libgssapi && cd /tmp/libgssapi && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/h/heimdal/libgssapi3-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/h/heimdal/libheimntlm0-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/h/heimdal/libheimbase1-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/h/heimdal/libhx509-5-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/h/heimdal/libhcrypto4-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/h/heimdal/libroken18-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/h/heimdal/libasn1-8-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb && \
+     wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/h/heimdal/libwind0-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb && \
+     dpkg -x libgssapi3-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb . && \
+     dpkg -x libheimntlm0-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb . && \
+     dpkg -x libheimbase1-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb . && \
+     dpkg -x libhx509-5-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb . && \
+     dpkg -x libhcrypto4-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb . && \
+     dpkg -x libroken18-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb . && \
+     dpkg -x libasn1-8-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb . && \
+     dpkg -x libwind0-heimdal_7.7.0+dfsg-1ubuntu1_amd64.deb . && \
+     cp -a usr/lib/x86_64-linux-gnu/libgssapi*.so* /usr/lib/x86_64-linux-gnu/ && \
+     cp -a usr/lib/x86_64-linux-gnu/libheimdal*.so* /usr/lib/x86_64-linux-gnu/ || true && \
+     cp -a usr/lib/x86_64-linux-gnu/libhx509*.so* /usr/lib/x86_64-linux-gnu/ && \
+     cp -a usr/lib/x86_64-linux-gnu/libhcrypto*.so* /usr/lib/x86_64-linux-gnu/ && \
+     cp -a usr/lib/x86_64-linux-gnu/libroken*.so* /usr/lib/x86_64-linux-gnu/ && \
+     cp -a usr/lib/x86_64-linux-gnu/libasn1*.so* /usr/lib/x86_64-linux-gnu/ && \
+     cp -a usr/lib/x86_64-linux-gnu/libwind*.so* /usr/lib/x86_64-linux-gnu/ && \
+     cp -a usr/lib/x86_64-linux-gnu/libheimbase*.so* /usr/lib/x86_64-linux-gnu/ && \
+     cp -a usr/lib/x86_64-linux-gnu/libheimntlm*.so* /usr/lib/x86_64-linux-gnu/ && \
+     ldconfig && \
+     ls -la /usr/lib/x86_64-linux-gnu/libgssapi*)
+
 # Install all possible dependencies that stellar-core might need
 RUN apt-get update && apt-get install -y \
     libsasl2-2 \
@@ -138,13 +157,20 @@ RUN apt-get update && apt-get install -y \
     libk5crypto3 \
     libkrb5-3 \
     libkrb5support0 \
-    libsasl2-modules-gssapi-mit || echo "Some dependencies could not be installed"
+    libsasl2-modules-gssapi-mit \
+    libheimntlm0-heimdal \
+    libheimbase1-heimdal \
+    libhx509-5-heimdal \
+    libhcrypto4-heimdal \
+    libroken18-heimdal \
+    libasn1-8-heimdal \
+    libwind0-heimdal \
+    libgssapi3-heimdal || echo "Some dependencies could not be installed"
 
-# Find stellar-core binary and verify it works
-RUN which stellar-core || which /usr/local/bin/stellar-core || echo "stellar-core not found in PATH"
-RUN ldd $(which stellar-core 2>/dev/null || echo /usr/local/bin/stellar-core) || echo "Could not check stellar-core dependencies"
-RUN (stellar-core version || /usr/local/bin/stellar-core version) || echo "stellar-core version check failed"
+# Verify stellar-core binary works
+RUN ls -la /usr/local/bin/stellar-core
+RUN ldd /usr/local/bin/stellar-core || echo "Could not check stellar-core dependencies"
+RUN /usr/local/bin/stellar-core version || echo "stellar-core version check failed"
 
-# Set the entrypoint with fallback paths for stellar-core
-ENTRYPOINT ["sh", "-c", "CORE_PATH=$(which stellar-core 2>/dev/null || echo /usr/local/bin/stellar-core) && \
-TZ=UTC/GMT /app/soroban-rpc --endpoint 0.0.0.0:80 --stellar-core-timeout \"50s\" --stellar-core-binary-path $CORE_PATH --captive-core-config-path /app/cmd/soroban-rpc/config/stellar-captive-core-live.toml --history-archive-urls https://history.stellar.org/prd/core-live/core_live_001,https://history.stellar.org/prd/core-live/core_live_002 --network-passphrase \"Public Global Stellar Network ; September 2015\""]
+# Set the entrypoint with direct path to stellar-core
+ENTRYPOINT ["sh", "-c", "TZ=UTC/GMT /app/soroban-rpc --endpoint 0.0.0.0:80 --stellar-core-timeout \"50s\" --stellar-core-binary-path /usr/local/bin/stellar-core --captive-core-config-path /app/cmd/soroban-rpc/config/stellar-captive-core-live.toml --history-archive-urls https://history.stellar.org/prd/core-live/core_live_001,https://history.stellar.org/prd/core-live/core_live_002 --network-passphrase \"Public Global Stellar Network ; September 2015\""]
