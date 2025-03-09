@@ -21,7 +21,9 @@ RUN apt-get update && apt-get install -y \
     wget \
     make \
     build-essential \
-    git
+    git \
+    libpq-dev \
+    postgresql-client
 
 # Install Rust and Cargo
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
